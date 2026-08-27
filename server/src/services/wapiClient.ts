@@ -22,6 +22,27 @@ interface WapiResponse {
   error?: string;
 }
 
+/**
+ * Inspeciona o corpo da resposta da W-API e devolve a mensagem de erro, se houver.
+ * A W-API costuma retornar HTTP 200 mesmo em falhas, sinalizando via corpo:
+ *   { "error": true, "message": "..." }  ou  { "error": "..." }  ou  { "success": false }
+ * Sem isso, o envio seria contabilizado como "enviado" mesmo tendo falhado.
+ */
+function erroNoCorpo(data: any): string | null {
+  if (!data || typeof data !== "object") return null;
+  if (data.error) {
+    const e = data.error;
+    if (typeof e === "string") return e;
+    if (typeof e === "object") return e.message || JSON.stringify(e);
+    return "Falha reportada pela W-API";
+  }
+  if (data.success === false) return data.message || "Falha reportada pela W-API";
+  if (data.status === "error" || data.status === "failed") {
+    return data.message || "Falha reportada pela W-API";
+  }
+  return null;
+}
+
 interface QrCodeResponse {
   qrCode: string;
   base64: string;
@@ -238,6 +259,11 @@ export async function sendText(numero: string, texto: string): Promise<WapiRespo
       phone: numero,
       message: texto,
     });
+    const erro = erroNoCorpo(data);
+    if (erro) {
+      console.error("[WAPI] send-text retornou falha no corpo:", JSON.stringify(data));
+      return { success: false, error: erro };
+    }
     return { success: true, data };
   } catch (err: unknown) {
     const error = err as { response?: { data?: { message?: string } }; message?: string };
@@ -261,6 +287,11 @@ export async function sendImage(numero: string, imageUrl: string, caption?: stri
       image: imageData,
       caption: caption || "",
     });
+    const erro = erroNoCorpo(data);
+    if (erro) {
+      console.error("[WAPI] send-image retornou falha no corpo:", JSON.stringify(data));
+      return { success: false, error: erro };
+    }
     return { success: true, data };
   } catch (err: unknown) {
     const error = err as { response?: { data?: { message?: string } }; message?: string };
@@ -284,6 +315,11 @@ export async function sendAudio(numero: string, audioUrl: string): Promise<WapiR
       audio: audioData,
       ptt: true,
     });
+    const erro = erroNoCorpo(data);
+    if (erro) {
+      console.error("[WAPI] send-audio retornou falha no corpo:", JSON.stringify(data));
+      return { success: false, error: erro };
+    }
     return { success: true, data };
   } catch (err: unknown) {
     const error = err as { response?: { data?: { message?: string } }; message?: string };
