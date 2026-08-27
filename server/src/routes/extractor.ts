@@ -13,6 +13,7 @@ import {
   hasNoWebsite,
 } from "../services/googleMapsScraper.js";
 import { prisma } from "../db.js";
+import { comRotacao } from "../services/apiKeyService.js";
 
 const router = Router();
 
@@ -36,7 +37,9 @@ router.post("/search", async (req, res) => {
 
   try {
     const limite = Math.min(Number(limit) || 20, 100);
-    const businesses = await searchBusinesses({ query: query.trim(), limit: limite });
+    const businesses = await comRotacao((key) =>
+      searchBusinesses({ query: query.trim(), limit: limite }, key)
+    );
 
     const semSite = (businesses as Record<string, any>[]).filter(hasNoWebsite);
     const ids = semSite.map((b) => b.business_id).filter(Boolean) as string[];
@@ -44,7 +47,7 @@ router.post("/search", async (req, res) => {
 
     let detalhes: Record<string, any>[] = [];
     for (let i = 0; i < lotes.length; i++) {
-      const lote = await getBusinessDetails(lotes[i]);
+      const lote = await comRotacao((key) => getBusinessDetails(lotes[i], key));
       detalhes = detalhes.concat(lote as Record<string, any>[]);
       if (i < lotes.length - 1) await sleep(1000);
     }

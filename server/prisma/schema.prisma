@@ -74,3 +74,14 @@ model ConfiguracaoDelay {
   valor           String
   descricao       String?
 }
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  label       String? // nome amigável (ex: "Conta 1")
+  key         String   @unique // chave da RapidAPI
+  ativo       Boolean  @default(true)
+  falhas      Int      @default(0)
+  ultimoErro  String?
+  ultimoUso   DateTime?
+  createdAt   DateTime @default(now())
+}

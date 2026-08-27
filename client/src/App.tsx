@@ -1,10 +1,11 @@
 import { Routes, Route, NavLink } from "react-router-dom";
-import { LayoutDashboard, Link2, Send, History, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Link2, Send, History, MessageSquare, KeyRound } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
 import NovaCampanha from "./pages/NovaCampanha";
 import Historico from "./pages/Historico";
 import ExtratorGoogle from "./pages/ExtratorGoogle";
+import ApiGoogle from "./pages/ApiGoogle";
 
 const ICON_NOVA_CAMPANHA =
   "https://png.pngtree.com/element_our/sm/20180626/sm_5b321c98efaa6.jpg";
@@ -78,6 +79,7 @@ function App() {
             label="Extrator Maps"
             img={ICON_GOOGLE_MAPS}
           />
+          <NavItem to="/api-google" label="API Google" icon={<KeyRound className="w-4 h-4" />} />
         </div>
       </nav>
 
@@ -89,6 +91,7 @@ function App() {
           <Route path="/nova-campanha" element={<NovaCampanha />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/extrator-maps" element={<ExtratorGoogle />} />
+          <Route path="/api-google" element={<ApiGoogle />} />
         </Routes>
       </main>
     </div>

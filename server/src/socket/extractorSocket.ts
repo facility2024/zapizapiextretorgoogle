@@ -14,6 +14,7 @@ import {
   toWhatsappLink,
   hasNoWebsite,
 } from "../services/googleMapsScraper.js";
+import { comRotacao } from "../services/apiKeyService.js";
 
 function mapearResultado(b: Record<string, any>) {
   const emails = Array.isArray(b.emails_and_contacts?.emails)
@@ -63,7 +64,7 @@ export function registerExtractorSocket(socket: Socket) {
       const limite = Math.min(Number(payload.limit) || 20, 100);
       socket.emit("extractor:status", { stage: "searching", message: "Buscando empresas…" });
 
-      const businesses = await searchBusinesses({ query, limit: limite });
+      const businesses = await comRotacao((key) => searchBusinesses({ query, limit: limite }, key));
       const semSite = (businesses as Record<string, any>[]).filter(hasNoWebsite);
       const ids = semSite.map((b) => b.business_id).filter(Boolean) as string[];
 
@@ -77,7 +78,7 @@ export function registerExtractorSocket(socket: Socket) {
       let enviados = 0;
 
       for (let i = 0; i < lotes.length; i++) {
-        const lote = (await getBusinessDetails(lotes[i])) as Record<string, any>[];
+        const lote = (await comRotacao((key) => getBusinessDetails(lotes[i], key))) as Record<string, any>[];
         for (const b of lote) {
           socket.emit("extractor:result", mapearResultado(b));
           enviados++;

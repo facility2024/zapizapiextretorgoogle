@@ -8,13 +8,13 @@ import axios from "axios";
 
 const BASE_URL = "https://local-business-data.p.rapidapi.com";
 
-function getHeaders() {
-  const apiKey = process.env.RAPIDAPI_KEY;
-  if (!apiKey) {
+function getHeaders(apiKey?: string) {
+  const key = apiKey || process.env.RAPIDAPI_KEY;
+  if (!key) {
     throw new Error("RAPIDAPI_KEY não configurada no servidor (.env)");
   }
   return {
-    "X-RapidAPI-Key": apiKey,
+    "X-RapidAPI-Key": key,
     "X-RapidAPI-Host": "local-business-data.p.rapidapi.com",
   };
 }
@@ -43,20 +43,23 @@ function toApiError(err: unknown): Error {
  * Busca empresas no Google Maps por palavra-chave/local.
  * Endpoint: GET /search
  */
-export async function searchBusinesses({
-  query,
-  limit = 20,
-  language = "pt",
-  region = "br",
-}: {
-  query: string;
-  limit?: number;
-  language?: string;
-  region?: string;
-}) {
+export async function searchBusinesses(
+  {
+    query,
+    limit = 20,
+    language = "pt",
+    region = "br",
+  }: {
+    query: string;
+    limit?: number;
+    language?: string;
+    region?: string;
+  },
+  apiKey?: string
+) {
   const { data } = await axios
     .get(`${BASE_URL}/search`, {
-      headers: getHeaders(),
+      headers: getHeaders(apiKey),
       params: { query, limit, language, region },
     })
     .catch((e) => {
@@ -74,12 +77,12 @@ export async function searchBusinesses({
  * Busca detalhes completos (e-mails, redes sociais, telefone).
  * Endpoint: GET /business-details (até 20 ids por chamada).
  */
-export async function getBusinessDetails(businessIds: string[]) {
+export async function getBusinessDetails(businessIds: string[], apiKey?: string) {
   const idsParam = businessIds.join(",");
 
   const { data } = await axios
     .get(`${BASE_URL}/business-details`, {
-      headers: getHeaders(),
+      headers: getHeaders(apiKey),
       params: {
         business_id: idsParam,
         extract_emails_and_contacts: true,

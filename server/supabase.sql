@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS "ConfiguracaoDelay" (
   CONSTRAINT "ConfiguracaoDelay_chave_key" UNIQUE ("chave")
 );
 
+-- Tabela: ApiKey (chaves da RapidAPI do Extrator Google Maps — rotação automática)
+CREATE TABLE IF NOT EXISTS "ApiKey" (
+  "id" text NOT NULL,
+  "label" text,
+  "key" text NOT NULL,
+  "ativo" boolean NOT NULL DEFAULT true,
+  "falhas" integer NOT NULL DEFAULT 0,
+  "ultimoErro" text,
+  "ultimoUso" timestamp(3),
+  "createdAt" timestamp(3) NOT NULL DEFAULT now(),
+  CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "ApiKey_key_key" UNIQUE ("key")
+);
+CREATE INDEX IF NOT EXISTS "ApiKey_ativo_idx" ON "ApiKey"("ativo");
+
 -- Trigger: mantém "updatedAt" da Campanha atualizado (Prisma também gerencia)
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
 BEGIN

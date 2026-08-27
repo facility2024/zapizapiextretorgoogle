@@ -15,6 +15,7 @@ import wapiRoutes from "./routes/wapi.js";
 import uploadRoutes from "./routes/upload.js";
 import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
+import apiKeysRoutes from "./routes/apiKeys.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { iniciarScheduler } from "./services/scheduler.js";
 import { registerExtractorSocket } from "./socket/extractorSocket.js";
@@ -42,6 +43,7 @@ app.use("/api/wapi", wapiRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/extractor", extractorRoutes);
+app.use("/api/apikeys", apiKeysRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");
