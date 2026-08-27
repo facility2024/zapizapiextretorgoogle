@@ -34,10 +34,11 @@ COPY . .
 
 # Gera o client Prisma e builda o frontend (client/dist)
 RUN cd server && npx prisma generate
+# Sincroniza o schema no banco (best-effort no build; não quebra o build se o BD estiver off)
+RUN cd server && npx prisma db push --skip-generate || true
 RUN npm run build
 
 EXPOSE 3001
 
-# Sincroniza o schema (best-effort) e sobe o servidor (API + frontend na mesma porta).
-# Usa ";" (não "&&") para o app subir mesmo se o db push falhar (schema já está no Supabase).
-CMD ["sh", "-c", "cd server && npx prisma db push; npm start"]
+# Sobe o servidor (API + frontend na mesma porta). O db push já roda no build.
+CMD ["sh", "-c", "cd server && npm start"]

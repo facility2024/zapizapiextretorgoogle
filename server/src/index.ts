@@ -21,6 +21,8 @@ import { iniciarScheduler } from "./services/scheduler.js";
 import { registerExtractorSocket } from "./socket/extractorSocket.js";
 import { prisma } from "./db.js";
 
+console.log("[BOOT] Iniciando Zapizapi...");
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
@@ -76,7 +78,11 @@ app.get("/api/health", (_req, res) => {
 });
 
 // Agendador de campanhas (dispara automaticamente no horário agendado)
-iniciarScheduler();
+try {
+  iniciarScheduler();
+} catch (e) {
+  console.error("[BOOT] Falha ao iniciar o agendador:", e);
+}
 
 // Inicia servidor
 httpServer.listen(PORT, () => {
