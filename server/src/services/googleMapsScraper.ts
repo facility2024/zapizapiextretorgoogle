@@ -19,6 +19,26 @@ function getHeaders() {
   };
 }
 
+/** Extrai uma mensagem útil de erros do axios/RapidAPI. */
+function toApiError(err: unknown): Error {
+  const e = err as {
+    response?: { status?: number; data?: any };
+    message?: string;
+  };
+  if (e?.response) {
+    const status = e.response.status;
+    const body = e.response.data;
+    const msg =
+      body?.message ||
+      body?.error?.message ||
+      (typeof body === "string" ? body : JSON.stringify(body));
+    console.error("[googleMapsScraper] RapidAPI respondeu:", status, JSON.stringify(body));
+    return new Error(`RapidAPI ${status}: ${msg || "sem mensagem"}`);
+  }
+  console.error("[googleMapsScraper] Erro de rede/requisição:", e?.message);
+  return e instanceof Error ? e : new Error(String(err));
+}
+
 /**
  * Busca empresas no Google Maps por palavra-chave/local.
  * Endpoint: GET /search
@@ -34,10 +54,14 @@ export async function searchBusinesses({
   language?: string;
   region?: string;
 }) {
-  const { data } = await axios.get(`${BASE_URL}/search`, {
-    headers: getHeaders(),
-    params: { query, limit, language, region },
-  });
+  const { data } = await axios
+    .get(`${BASE_URL}/search`, {
+      headers: getHeaders(),
+      params: { query, limit, language, region },
+    })
+    .catch((e) => {
+      throw toApiError(e);
+    });
 
   if (data.status !== "OK") {
     throw new Error(`Erro na busca: ${data.error?.message || "desconhecido"}`);
@@ -53,15 +77,19 @@ export async function searchBusinesses({
 export async function getBusinessDetails(businessIds: string[]) {
   const idsParam = businessIds.join(",");
 
-  const { data } = await axios.get(`${BASE_URL}/business-details`, {
-    headers: getHeaders(),
-    params: {
-      business_id: idsParam,
-      extract_emails_and_contacts: true,
-      language: "pt",
-      region: "br",
-    },
-  });
+  const { data } = await axios
+    .get(`${BASE_URL}/business-details`, {
+      headers: getHeaders(),
+      params: {
+        business_id: idsParam,
+        extract_emails_and_contacts: true,
+        language: "pt",
+        region: "br",
+      },
+    })
+    .catch((e) => {
+      throw toApiError(e);
+    });
 
   if (data.status !== "OK") {
     throw new Error(`Erro ao buscar detalhes: ${data.error?.message || "desconhecido"}`);
