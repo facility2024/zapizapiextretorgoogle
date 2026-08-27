@@ -244,7 +244,7 @@ export default function NovaCampanha() {
         imagensUrls: imagemUrl,
         audioUrl,
         variavelFallback: fallback || undefined,
-        contatoIds: [...new Map(contatosParaEnviar.map((c) => [c.numero, c])).values()].map((c) => c.id),
+        contatoIds: contatosParaEnviar.map((c) => c.id),
         agendarPara: modoEnvio === "agendar" ? agendarPara : undefined,
         delayEntreMsgMin: delayMin,
         delayEntreMsgMax: delayMax,
