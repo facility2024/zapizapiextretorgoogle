@@ -390,7 +390,11 @@ export default function NovaCampanha() {
                       )}
                       <span className={valido ? "text-green-400" : "text-red-400"}>{num}</span>
                       {!valido && (
-                        <span className="text-red-400/70">({num.length} dígitos — inválido)</span>
+                        <span className="text-red-400/70">
+                          {num.length === 14
+                            ? "(provável dígito faltando após o 55)"
+                            : `(${num.length} dígitos — inválido)`}
+                        </span>
                       )}
                     </div>
                   );
