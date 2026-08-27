@@ -139,6 +139,42 @@ router.post("/:id/cancel", async (req, res) => {
   res.json({ message: "Campanha cancelada" });
 });
 
+// POST /api/campaigns/:id/reschedule — altera a data de agendamento
+router.post("/:id/reschedule", async (req, res) => {
+  const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });
+  if (!campanha) {
+    res.status(404).json({ error: "Campanha não encontrada" });
+    return;
+  }
+  const { agendarPara } = req.body;
+  if (!agendarPara) {
+    res.status(400).json({ error: "agendarPara é obrigatório" });
+    return;
+  }
+  const atualizada = await prisma.campanha.update({
+    where: { id: req.params.id },
+    data: {
+      agendarPara: parseBrasilia(String(agendarPara)),
+      status: "agendada",
+    },
+  });
+  res.json(atualizada);
+});
+
+// POST /api/campaigns/:id/unschedule — cancela o agendamento (volta a rascunho)
+router.post("/:id/unschedule", async (req, res) => {
+  const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });
+  if (!campanha) {
+    res.status(404).json({ error: "Campanha não encontrada" });
+    return;
+  }
+  const atualizada = await prisma.campanha.update({
+    where: { id: req.params.id },
+    data: { agendarPara: null, status: "rascunho" },
+  });
+  res.json(atualizada);
+});
+
 // POST /api/campaigns/:id/preview — gera exemplos de mensagem
 router.post("/:id/preview", async (req, res) => {
   const { contatoId } = req.body;

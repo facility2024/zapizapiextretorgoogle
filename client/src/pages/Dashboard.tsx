@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2, CalendarClock, Play } from "lucide-react";
+import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2, CalendarClock, Play, Pencil, X } from "lucide-react";
 import api from "../api";
 
 interface SystemStatus {
@@ -105,6 +105,30 @@ export default function Dashboard() {
     }
   }
 
+  async function editarAgendamento(c: CampanhaAgendada) {
+    const novo = window.prompt(
+      "Nova data/hora (formato AAAA-MM-DDTHH:mm, horário de Brasília):",
+      c.agendarPara ? new Date(c.agendarPara).toISOString().slice(0, 16) : ""
+    );
+    if (!novo) return;
+    try {
+      await api.post(`/campaigns/${c.id}/reschedule`, { agendarPara: novo });
+      carregarAgendadas();
+    } catch {
+      // Silencia erro
+    }
+  }
+
+  async function cancelarAgendamento(id: string) {
+    if (!window.confirm("Cancelar o agendamento desta campanha?")) return;
+    try {
+      await api.post(`/campaigns/${id}/unschedule`);
+      carregarAgendadas();
+    } catch {
+      // Silencia erro
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -168,18 +192,34 @@ export default function Dashboard() {
                     {c.totalContatos} contatos · {formatarBrasilia(c.agendarPara)} (Brasília)
                   </p>
                 </div>
-                <button
-                  onClick={() => iniciarAgora(c.id)}
-                  disabled={iniciandoId === c.id}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-accent/20 text-accent-light border border-accent/30 rounded-lg text-xs hover:bg-accent/30 transition-colors disabled:opacity-40"
-                >
-                  {iniciandoId === c.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5" />
-                  )}
-                  Iniciar agora
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => iniciarAgora(c.id)}
+                    disabled={iniciandoId === c.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/20 text-accent-light border border-accent/30 rounded-lg text-xs hover:bg-accent/30 transition-colors disabled:opacity-40"
+                  >
+                    {iniciandoId === c.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                    Iniciar
+                  </button>
+                  <button
+                    onClick={() => editarAgendamento(c)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-primary border border-gray-700 rounded-lg text-xs text-gray-300 hover:border-gray-500 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => cancelarAgendamento(c.id)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400 hover:bg-red-500/20 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Cancelar
+                  </button>
+                </div>
               </div>
             ))}
           </div>
