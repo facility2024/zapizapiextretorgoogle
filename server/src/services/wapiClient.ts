@@ -14,6 +14,7 @@ const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 const WAPI_BASE_URL = process.env.WAPI_BASE_URL || "https://api.w-api.app";
 const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID || "";
 const WAPI_TOKEN = process.env.WAPI_TOKEN || "";
+const WAPI_API_KEY = process.env.WAPI_API_KEY || "";
 
 interface WapiResponse {
   success: boolean;
@@ -31,17 +32,22 @@ interface ConnectionStatus {
 }
 
 let api: AxiosInstance | null = null;
+let apiToken = "";
+// Token da instância retornado pelo create-instance (sobrepõe WAPI_TOKEN quando definido)
+let instanceTokenOverride = "";
 
-function getClient(): AxiosInstance {
-  if (!api) {
+function getClient(token?: string): AxiosInstance {
+  const authToken = token ?? (instanceTokenOverride || WAPI_TOKEN);
+  if (!api || apiToken !== authToken) {
     api = axios.create({
       baseURL: WAPI_BASE_URL,
       headers: {
-        Authorization: `Bearer ${WAPI_TOKEN}`,
+        Authorization: `Bearer ${authToken}`,
         "Content-Type": "application/json",
       },
       timeout: 15000,
     });
+    apiToken = authToken;
   }
   return api;
 }
@@ -109,11 +115,53 @@ export function marcarDesconectado(): void {
 }
 
 /**
+ * Garante que a instância existe na W-API (auto-provisionamento).
+ * Usa a API key da CONTA para chamar POST /v1/client/create-instance.
+ * Se a instância já existir, ignora o erro e segue para o QR.
+ * Isso também aloca IP/porta de instâncias LITE recém-criadas.
+ */
+export async function ensureInstanceCreated(): Promise<void> {
+  if (!WAPI_API_KEY) return;
+  const client = getClient(WAPI_API_KEY);
+  try {
+    const { data } = await client.post(`/v1/client/create-instance?instanceId=${WAPI_INSTANCE_ID}`, {
+      lite: true,
+      instanceName: WAPI_INSTANCE_ID,
+      apiKey: WAPI_API_KEY,
+    });
+    // create-instance retorna o token da instância recém-criada
+    const tok =
+      data?.token ||
+      (data?.data && data.data.token) ||
+      null;
+    if (tok) {
+      instanceTokenOverride = tok;
+      console.log("[WAPI] Instância criada/atualizada. Usando token retornado pela API.");
+    }
+  } catch (err: unknown) {
+    const error = err as { response?: { data?: unknown }; message?: string };
+    console.warn("[WAPI] create-instance (ignorado se já existir):", error.response?.data || error.message);
+  }
+}
+
+/**
  * Obtém QR Code para pareamento
  * GET /v1/instance/qr-code?instanceId=X
  */
 export async function getQrCode(): Promise<QrCodeResponse> {
   const client = getClient();
+
+  // Auto-provisiona a instância (aloca IP/porta) antes de gerar o QR.
+  await ensureInstanceCreated();
+
+  // Tenta reiniciar/inicializar a instância antes de gerar o QR.
+  // Instâncias LITE recém-criadas precisam ser "iniciadas" para alocar IP/porta.
+  try {
+    await client.get(`/v1/instance/restart?instanceId=${WAPI_INSTANCE_ID}`);
+  } catch {
+    // ignora falhas de restart — o erro real virá no qr-code, se houver
+  }
+
   try {
     const { data } = await client.get(`/v1/instance/qr-code?instanceId=${WAPI_INSTANCE_ID}`);
     // W-API retorna { error, instanceId, qrcode: "data:image/png;base64,..." }
@@ -131,8 +179,17 @@ export async function getQrCode(): Promise<QrCodeResponse> {
     };
   } catch (err: unknown) {
     const error = err as { response?: { data?: unknown }; message?: string };
-    console.error("[WAPI] Erro ao obter QR Code:", error.response?.data || error.message);
-    throw new Error(`Falha ao obter QR Code: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+    const raw = error.response?.data ? JSON.stringify(error.response.data) : error.message || "";
+    console.error("[WAPI] Erro ao obter QR Code:", raw);
+
+    // Mensagem amigável para o erro comum de instância não iniciada
+    if (raw.includes("IP ou porta") || raw.includes("IP or port")) {
+      const dica = WAPI_API_KEY
+        ? "Verifique se a WAPI_API_KEY está correta no .env."
+        : "Defina a WAPI_API_KEY (chave da CONTA w-api.app) no .env para criar a instância automaticamente.";
+      throw new Error(`Instância W-API ${WAPI_INSTANCE_ID} sem IP/porta. ${dica}`);
+    }
+    throw new Error(`Falha ao obter QR Code: ${raw}`);
   }
 }
 
