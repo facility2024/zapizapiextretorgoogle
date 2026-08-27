@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, Loader2, Download, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import api from "../api";
 import { socket } from "../socket";
 import type { Resultado } from "./ExtratorGoogle.types";
 
@@ -24,6 +26,13 @@ export default function ExtratorGoogle() {
       : filtro === "email"
       ? resultados.filter((r) => r.email.trim() !== "")
       : resultados;
+
+  const [salvando, setSalvando] = useState(false);
+  const [modal, setModal] = useState(false);
+  const [nomeCamp, setNomeCamp] = useState("");
+  const [msgCamp, setMsgCamp] = useState("");
+  const [campanhaId, setCampanhaId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onStatus = (d: { message?: string }) => {
@@ -132,6 +141,46 @@ export default function ExtratorGoogle() {
     URL.revokeObjectURL(url);
   }
 
+  async function salvarNoBanco() {
+    if (visiveis.length === 0) return;
+    setSalvando(true);
+    try {
+      const { data } = await api.post("/extractor/save", { leads: visiveis, query });
+      setErro("");
+      window.alert(`${data.total} lead(s) salvos no banco como contatos.`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string };
+      setErro(e.response?.data?.error || e.message || "Erro ao salvar leads");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function confirmarCampanha() {
+    if (!nomeCamp.trim() || !msgCamp.trim()) {
+      setErro("Nome e mensagem são obrigatórios");
+      return;
+    }
+    setSalvando(true);
+    try {
+      const { data: save } = await api.post("/extractor/save", { leads: visiveis, query });
+      const { data: camp } = await api.post("/campaigns", {
+        nome: nomeCamp.trim(),
+        tipoDisparo: "texto",
+        textoMensagem: msgCamp.trim(),
+        contatoIds: save.contatoIds,
+      });
+      setCampanhaId(camp.id);
+      setModal(false);
+      setErro("");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string };
+      setErro(e.response?.data?.error || e.message || "Erro ao criar campanha");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   return (
     <div className="space-y-8 max-w-6xl">
       <div>
@@ -194,6 +243,26 @@ export default function ExtratorGoogle() {
         </div>
       )}
 
+      {campanhaId && (
+        <div className="bg-accent/10 border border-accent/30 text-accent-light p-3 rounded-xl text-sm flex items-center justify-between gap-3">
+          <span>✅ Campanha criada com sucesso!</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCampanhaId(null)}
+              className="px-3 py-1.5 bg-bg-primary border border-gray-700 rounded-lg text-xs hover:border-gray-500 transition-colors"
+            >
+              Fechar
+            </button>
+            <button
+              onClick={() => navigate("/")}
+              className="px-3 py-1.5 bg-accent hover:bg-accent-light text-white rounded-lg text-xs transition-colors"
+            >
+              Ver no Dashboard
+            </button>
+          </div>
+        </div>
+      )}
+
       {resultados.length > 0 && (
         <div className="neon-card rounded-xl p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -203,13 +272,30 @@ export default function ExtratorGoogle() {
                 {resultados.length} empresas encontradas
               </span>
             </h2>
-            <button
-              onClick={exportarCSV}
-              disabled={visiveis.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
-            >
-              <Download className="w-4 h-4" /> Exportar CSV ({visiveis.length})
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportarCSV}
+                disabled={visiveis.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
+              >
+                <Download className="w-4 h-4" /> Exportar CSV ({visiveis.length})
+              </button>
+              <button
+                onClick={salvarNoBanco}
+                disabled={salvando || visiveis.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
+              >
+                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Salvar no banco
+              </button>
+              <button
+                onClick={() => setModal(true)}
+                disabled={visiveis.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-light text-white rounded-lg text-sm transition-colors disabled:opacity-40 shadow-glow-sm"
+              >
+                Criar campanha
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -286,6 +372,49 @@ export default function ExtratorGoogle() {
               <Loader2 className="w-3 h-3 animate-spin" /> recebendo resultados em tempo real…
             </p>
           )}
+        </div>
+      )}
+
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="neon-card rounded-xl p-6 w-full max-w-lg">
+            <h3 className="text-lg font-bold mb-4">
+              Criar campanha ({visiveis.length} contatos)
+            </h3>
+            <label className="text-xs text-gray-400">Nome da campanha</label>
+            <input
+              value={nomeCamp}
+              onChange={(e) => setNomeCamp(e.target.value)}
+              placeholder="Ex: Lojas Tijuca - WhatsApp"
+              className="w-full mt-1 mb-3 bg-bg-primary border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            />
+            <label className="text-xs text-gray-400">Mensagem</label>
+            <textarea
+              value={msgCamp}
+              onChange={(e) => setMsgCamp(e.target.value)}
+              rows={4}
+              placeholder="Olá {{nome}}, tudo bem? ..." 
+              className="w-full mt-1 mb-1 bg-bg-primary border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none resize-none"
+            />
+            <p className="text-[11px] text-gray-500 mb-4">
+              Variáveis disponíveis: {"{{nome}}"}, {"{{email}}"}, {"{{endereco}}"}, {"{{categoria}}"}…
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setModal(false)}
+                className="px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-gray-500 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarCampanha}
+                disabled={salvando}
+                className="px-4 py-2 bg-accent hover:bg-accent-light text-white rounded-lg text-sm transition-colors disabled:opacity-40"
+              >
+                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar campanha"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
