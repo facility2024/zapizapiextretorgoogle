@@ -34,8 +34,6 @@ COPY . .
 
 # Gera o client Prisma e builda o frontend (client/dist)
 RUN cd server && npx prisma generate
-# Sincroniza o schema no banco (best-effort no build; não quebra o build se o BD estiver off)
-RUN cd server && npx prisma db push --skip-generate || true
 RUN npm run build
 
 EXPOSE 3001
