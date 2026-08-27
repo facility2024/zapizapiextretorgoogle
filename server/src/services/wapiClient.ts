@@ -138,8 +138,9 @@ export async function ensureInstanceCreated(): Promise<void> {
       null;
     if (tok) {
       instanceTokenOverride = tok;
-      createInstanceLog = "ok (token retornado pela API)";
-      console.log("[WAPI] Instância criada/atualizada. Usando token retornado pela API.");
+      const masked = tok.length > 8 ? `${tok.slice(0, 4)}...${tok.slice(-4)}` : "***";
+      createInstanceLog = `ok (token retornado pela API: ${masked})`;
+      console.log(`[WAPI] Instância criada/atualizada. Usando token retornado pela API: ${masked}`);
     } else {
       createInstanceLog = "ok (sem token no retorno)";
     }
