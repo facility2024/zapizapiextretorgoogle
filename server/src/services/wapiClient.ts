@@ -157,10 +157,10 @@ export async function ensureInstanceCreated(): Promise<void> {
  * GET /v1/instance/qr-code?instanceId=X
  */
 export async function getQrCode(): Promise<QrCodeResponse> {
-  const client = getClient();
-
-  // Auto-provisiona a instância (aloca IP/porta) antes de gerar o QR.
+  // Auto-provisiona a instância (aloca IP/porta) e captura o token novo, se houver.
+  // IMPORTANTE: o client deve ser criado DEPOIS, para usar o token retornado.
   await ensureInstanceCreated();
+  const client = getClient();
 
   // Tenta reiniciar/inicializar a instância antes de gerar o QR.
   // Instâncias LITE recém-criadas precisam ser "iniciadas" para alocar IP/porta.
