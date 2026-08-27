@@ -5,23 +5,24 @@ export default {
     extend: {
       colors: {
         bg: {
-          primary: "#0A0A0A",
-          secondary: "#111111",
-          card: "#1A1A1A",
+          primary: "#08070B",
+          secondary: "#0E0B14",
+          card: "#13101A",
         },
         accent: {
-          DEFAULT: "#8B00FF",
-          light: "#A100FF",
-          glow: "rgba(139, 0, 255, 0.15)",
+          DEFAULT: "#A855F7",
+          light: "#C084FC",
+          glow: "rgba(168, 85, 247, 0.15)",
         },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ['"Space Grotesk"', "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        "glow-sm": "0 0 10px rgba(139, 0, 255, 0.2)",
-        glow: "0 0 20px rgba(139, 0, 255, 0.3)",
-        "glow-lg": "0 0 40px rgba(139, 0, 255, 0.4)",
+        "glow-sm": "0 0 10px rgba(168, 85, 247, 0.2)",
+        glow: "0 0 20px rgba(168, 85, 247, 0.3)",
+        "glow-lg": "0 0 40px rgba(168, 85, 247, 0.4)",
       },
     },
   },

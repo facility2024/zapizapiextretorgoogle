@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { io } from "socket.io-client";
 import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2, CalendarClock, Play, Pencil, X } from "lucide-react";
 import api from "../api";
@@ -40,6 +41,37 @@ function formatarBrasilia(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+/* Animação de count-up quando o valor muda (via WebSocket/polling) */
+function useCountUp(value: number, duration = 700) {
+  const [display, setDisplay] = useState(value);
+  const prev = useRef(value);
+  useEffect(() => {
+    const from = prev.current;
+    const to = value;
+    if (from === to) {
+      setDisplay(to);
+      return;
+    }
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else prev.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return display;
+}
+
+function StatNumber({ value }: { value: number }) {
+  const display = useCountUp(value);
+  return <span className="font-display tabular-nums">{display}</span>;
 }
 
 export default function Dashboard() {
@@ -148,37 +180,50 @@ export default function Dashboard() {
       <div className="grid grid-cols-4 gap-4">
         <Card
           titulo="Enviados Hoje"
-          valor={status?.enviadosHoje ?? 0}
+          valor={<StatNumber value={status?.enviadosHoje ?? 0} />}
           icon={<Send className="w-5 h-5" />}
           cor="text-green-400"
           bg="bg-green-400/10"
+          glow="glow-green"
+          dur="5s"
         />
         <Card
           titulo="Na Fila"
-          valor={status?.naFila ?? 0}
+          valor={<StatNumber value={status?.naFila ?? 0} />}
           icon={<Loader2 className="w-5 h-5" />}
           cor="text-accent-light"
           bg="bg-accent/10"
+          glow="glow-purple"
+          dur="6s"
         />
         <Card
           titulo="Com Erro"
-          valor={status?.comErro ?? 0}
+          valor={<StatNumber value={status?.comErro ?? 0} />}
           icon={<AlertTriangle className="w-5 h-5" />}
           cor="text-red-400"
           bg="bg-red-400/10"
+          glow="glow-red"
+          dur="7s"
         />
         <Card
           titulo="Conexão"
-          valor={status?.conectado ? "Online" : "Offline"}
+          valor={
+            <span className="flex items-center gap-2">
+              <span className={`conn-dot ${status?.conectado ? "conn-dot--online" : "conn-dot--offline"}`} />
+              {status?.conectado ? "Online" : "Offline"}
+            </span>
+          }
           icon={status?.conectado ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
           cor={status?.conectado ? "text-green-400" : "text-red-400"}
           bg={status?.conectado ? "bg-green-400/10" : "bg-red-400/10"}
+          glow="glow-purple"
+          dur="6s"
         />
       </div>
 
       {/* Campanhas agendadas */}
       {agendadas.length > 0 && (
-        <div className="bg-bg-card rounded-xl border border-gray-800 p-4">
+        <div className="neon-card rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
             <CalendarClock className="w-4 h-4 text-accent" />
             Campanhas Agendadas ({agendadas.length})
@@ -228,7 +273,7 @@ export default function Dashboard() {
 
       {/* Status da fila */}
       {status?.filaProcessando && (
-        <div className="bg-bg-card border border-accent/20 rounded-xl p-4 shadow-glow-sm">
+        <div className="neon-card rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 text-accent animate-spin" />
@@ -252,7 +297,7 @@ export default function Dashboard() {
 
       {/* Últimas atualizações */}
       {updates.length > 0 && (
-        <div className="bg-bg-card rounded-xl border border-gray-800 p-4">
+        <div className="neon-card rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-400 mb-3">Atividade em Tempo Real</h2>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {updates.map((u, i) => (
@@ -273,9 +318,9 @@ export default function Dashboard() {
   );
 }
 
-function Card({ titulo, valor, icon, cor, bg }: { titulo: string; valor: string | number; icon: React.ReactNode; cor: string; bg: string }) {
+function Card({ titulo, valor, icon, cor, bg, glow, dur }: { titulo: string; valor: ReactNode; icon: ReactNode; cor: string; bg: string; glow?: string; dur?: string }) {
   return (
-    <div className="bg-bg-card border border-gray-800 rounded-xl p-4 shadow-glow-sm">
+    <div className={`neon-card rounded-xl p-4 ${glow ?? ""}`} style={{ "--dur": dur ?? "6s" } as CSSProperties}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-gray-500 uppercase tracking-wider">{titulo}</span>
         <div className={`${bg} ${cor} p-2 rounded-lg`}>{icon}</div>
