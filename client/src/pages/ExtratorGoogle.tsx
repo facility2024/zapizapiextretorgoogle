@@ -31,6 +31,8 @@ export default function ExtratorGoogle() {
   const [modal, setModal] = useState(false);
   const [nomeCamp, setNomeCamp] = useState("");
   const [msgCamp, setMsgCamp] = useState("");
+  const [agendar, setAgendar] = useState(false);
+  const [dataAgendamento, setDataAgendamento] = useState("");
   const [campanhaId, setCampanhaId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -161,6 +163,10 @@ export default function ExtratorGoogle() {
       setErro("Nome e mensagem são obrigatórios");
       return;
     }
+    if (agendar && !dataAgendamento) {
+      setErro("Informe a data/hora do agendamento");
+      return;
+    }
     setSalvando(true);
     try {
       const { data: save } = await api.post("/extractor/save", { leads: visiveis, query });
@@ -169,9 +175,12 @@ export default function ExtratorGoogle() {
         tipoDisparo: "texto",
         textoMensagem: msgCamp.trim(),
         contatoIds: save.contatoIds,
+        agendarPara: agendar ? dataAgendamento : undefined,
       });
       setCampanhaId(camp.id);
       setModal(false);
+      setAgendar(false);
+      setDataAgendamento("");
       setErro("");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };
@@ -399,6 +408,25 @@ export default function ExtratorGoogle() {
             <p className="text-[11px] text-gray-500 mb-4">
               Variáveis disponíveis: {"{{nome}}"}, {"{{email}}"}, {"{{endereco}}"}, {"{{categoria}}"}…
             </p>
+
+            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none mb-2">
+              <input
+                type="checkbox"
+                checked={agendar}
+                onChange={(e) => setAgendar(e.target.checked)}
+                className="accent-[#A855F7]"
+              />
+              Agendar envio (horário de Brasília)
+            </label>
+            {agendar && (
+              <input
+                type="datetime-local"
+                value={dataAgendamento}
+                onChange={(e) => setDataAgendamento(e.target.value)}
+                className="w-full mb-4 bg-bg-primary border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              />
+            )}
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setModal(false)}
