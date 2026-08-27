@@ -39,9 +39,9 @@ let instanceTokenOverride = "";
 let createInstanceLog = "não executado";
 
 function getClient(token?: string): AxiosInstance {
-  // Prioridade: token explícito > chave da CONTA (WAPI_API_KEY) > token retornado pelo create-instance > WAPI_TOKEN.
-  // Usar a chave da conta (como o painel w-api.app faz) contorna tokens de instância corrompidos.
-  const authToken = token ?? (WAPI_API_KEY || instanceTokenOverride || WAPI_TOKEN);
+  // As operações de instância (qr-code, envio, status) exigem o TOKEN DA INSTÂNCIA.
+  // A chave da conta (WAPI_API_KEY) só é usada no create-instance (chamada explícita abaixo).
+  const authToken = token ?? (instanceTokenOverride || WAPI_TOKEN);
   if (!api || apiToken !== authToken) {
     api = axios.create({
       baseURL: WAPI_BASE_URL,
