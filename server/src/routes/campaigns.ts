@@ -43,6 +43,7 @@ router.post("/", async (req, res) => {
     tipoDisparo,
     textoMensagem,
     imagemUrl,
+    imagensUrls,
     audioUrl,
     variavelFallback,
     contatoIds,
@@ -71,7 +72,8 @@ router.post("/", async (req, res) => {
       nome,
       tipoDisparo,
       textoMensagem,
-      imagemUrl: imagemUrl || null,
+      imagemUrl: imagemUrl || (imagensUrls ? (JSON.parse(imagensUrls)[0] ?? null) : null),
+      imagensUrls: imagensUrls || null,
       audioUrl: audioUrl || null,
       variavelFallback: variavelFallback || null,
       // agendarPara é interpretado como horário de Brasília (UTC-3) e salvo em UTC
