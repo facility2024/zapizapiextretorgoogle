@@ -34,6 +34,10 @@ export default function NovaCampanha() {
   const [delayMax, setDelayMax] = useState(40);
   const [delayImgTxt, setDelayImgTxt] = useState(4);
 
+  // Agendamento: "agora" dispara imediatamente; "agendar" dispara no horário (Brasília)
+  const [modoEnvio, setModoEnvio] = useState<"agora" | "agendar">("agora");
+  const [agendarPara, setAgendarPara] = useState("");
+
   const [modoContato, setModoContato] = useState<ModoContato>("planilha");
   const [numerosManual, setNumerosManual] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -199,10 +203,22 @@ export default function NovaCampanha() {
         audioUrl,
         variavelFallback: fallback || undefined,
         contatoIds: contatosParaEnviar.map((c) => c.id),
+        agendarPara: modoEnvio === "agendar" ? agendarPara : undefined,
         delayEntreMsgMin: delayMin,
         delayEntreMsgMax: delayMax,
         delayImagemTexto: delayImgTxt,
       });
+
+      // Se agendado, não inicia agora — o agendador do servidor dispara no horário.
+      if (modoEnvio === "agendar") {
+        setNome("");
+        setTextoMensagem("");
+        setNumerosManual("");
+        setUploadResult(null);
+        setMensagemErro("");
+        alert(`Campanha agendada para ${agendarPara.replace("T", " ")} (horário de Brasília, UTC-3).`);
+        return;
+      }
 
       // Auto-inicia a campanha
       await api.post(`/campaigns/${campanha.id}/start`);
@@ -605,10 +621,60 @@ export default function NovaCampanha() {
         </div>
       </div>
 
+      {/* Agendamento */}
+      <div className="bg-bg-card border border-gray-800 rounded-xl p-6">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">4. Quando Enviar?</h2>
+
+        <div className="flex gap-3 mb-4">
+          <button
+            onClick={() => setModoEnvio("agora")}
+            className={`px-4 py-2 rounded-lg text-sm transition-all ${
+              modoEnvio === "agora"
+                ? "bg-accent/20 text-accent-light border border-accent/30"
+                : "bg-bg-primary border border-gray-700 text-gray-400 hover:border-gray-500"
+            }`}
+          >
+            Agora
+          </button>
+          <button
+            onClick={() => setModoEnvio("agendar")}
+            className={`px-4 py-2 rounded-lg text-sm transition-all ${
+              modoEnvio === "agendar"
+                ? "bg-accent/20 text-accent-light border border-accent/30"
+                : "bg-bg-primary border border-gray-700 text-gray-400 hover:border-gray-500"
+            }`}
+          >
+            Agendar
+          </button>
+        </div>
+
+        {modoEnvio === "agendar" && (
+          <div className="space-y-2">
+            <label className="block text-xs text-gray-500">
+              Data e hora (horário de Brasília, UTC-3)
+            </label>
+            <input
+              type="datetime-local"
+              value={agendarPara}
+              onChange={(e) => setAgendarPara(e.target.value)}
+              className="w-full bg-bg-primary border border-gray-700 rounded-lg px-4 py-3 text-sm focus:border-accent focus:outline-none"
+            />
+            <p className="text-xs text-gray-500">
+              Agora em Brasília:{" "}
+              {new Intl.DateTimeFormat("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                dateStyle: "short",
+                timeStyle: "short",
+              }).format(new Date())}
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Botão enviar */}
       <button
         onClick={handleEnviar}
-        disabled={enviando || !nome || !textoMensagem || (modoContato === "planilha" ? !uploadResult?.contatos.length : numerosLinhas.length === 0)}
+        disabled={enviando || !nome || !textoMensagem || (modoContato === "planilha" ? !uploadResult?.contatos.length : numerosLinhas.length === 0) || (modoEnvio === "agendar" && !agendarPara)}
         className="w-full py-4 bg-accent hover:bg-accent-light disabled:opacity-40 rounded-xl font-semibold transition-all shadow-glow-sm hover:shadow-glow flex items-center justify-center gap-3"
       >
         {enviando ? (

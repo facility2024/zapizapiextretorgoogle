@@ -6,6 +6,7 @@
 import { Router } from "express";
 import * as queue from "../services/queue.js";
 import { gerarExemplos, validarSpintax, detectarVariaveis, Contato } from "../services/messageParser.js";
+import { parseBrasilia } from "../services/timezone.js";
 import { prisma } from "../db.js";
 
 const router = Router();
@@ -73,7 +74,8 @@ router.post("/", async (req, res) => {
       imagemUrl: imagemUrl || null,
       audioUrl: audioUrl || null,
       variavelFallback: variavelFallback || null,
-      agendarPara: agendarPara ? new Date(agendarPara) : null,
+      // agendarPara é interpretado como horário de Brasília (UTC-3) e salvo em UTC
+      agendarPara: agendarPara ? parseBrasilia(String(agendarPara)) : null,
       status: agendarPara ? "agendada" : "rascunho",
       delayEntreMsgMin: delayEntreMsgMin || 20,
       delayEntreMsgMax: delayEntreMsgMax || 40,
@@ -105,7 +107,7 @@ router.post("/:id/start", async (req, res) => {
     res.status(404).json({ error: "Campanha não encontrada" });
     return;
   }
-  if (campanha.status !== "rascunho" && campanha.status !== "pausada") {
+  if (campanha.status !== "rascunho" && campanha.status !== "pausada" && campanha.status !== "agendada") {
     res.status(400).json({ error: `Não é possível iniciar campanha com status "${campanha.status}"` });
     return;
   }
@@ -176,11 +178,12 @@ router.get("/system/status", async (_req, res) => {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const [enviadosHoje, naFila, comErro, totalCampanhas] = await Promise.all([
+  const [enviadosHoje, naFila, comErro, totalCampanhas, agendadas] = await Promise.all([
     prisma.envio.count({ where: { status: "enviado", enviadoEm: { gte: hoje } } }),
     prisma.campanhaContato.count({ where: { status: "pendente" } }),
     prisma.envio.count({ where: { status: "erro" } }),
     prisma.campanha.count(),
+    prisma.campanha.count({ where: { status: "agendada" } }),
   ]);
 
   const statusConexao = await (await import("../services/wapiClient.js")).checkStatus();
@@ -190,6 +193,7 @@ router.get("/system/status", async (_req, res) => {
     naFila,
     comErro,
     totalCampanhas,
+    agendadas,
     conectado: statusConexao.status === "connected",
     filaProcessando: queue.isProcessando(),
     filaPausado: queue.isPausado(),

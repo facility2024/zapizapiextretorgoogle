@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2, CalendarClock, Play } from "lucide-react";
 import api from "../api";
 
 interface SystemStatus {
@@ -8,6 +8,7 @@ interface SystemStatus {
   naFila: number;
   comErro: number;
   totalCampanhas: number;
+  agendadas: number;
   conectado: boolean;
   filaProcessando: boolean;
   filaPausado: boolean;
@@ -22,13 +23,35 @@ interface CampaignUpdate {
   timestamp: string;
 }
 
+interface CampanhaAgendada {
+  id: string;
+  nome: string;
+  agendarPara: string;
+  totalContatos: number;
+}
+
+function formatarBrasilia(iso: string): string {
+  if (!iso) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 export default function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [updates, setUpdates] = useState<CampaignUpdate[]>([]);
+  const [agendadas, setAgendadas] = useState<CampanhaAgendada[]>([]);
+  const [iniciandoId, setIniciandoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarStatus();
+    carregarAgendadas();
 
     const socket = io("/", { path: "/socket.io" });
     socket.on("campaign-update", (data: CampaignUpdate) => {
@@ -36,7 +59,10 @@ export default function Dashboard() {
       carregarStatus();
     });
 
-    const interval = setInterval(carregarStatus, 10000);
+    const interval = setInterval(() => {
+      carregarStatus();
+      carregarAgendadas();
+    }, 10000);
     return () => {
       socket.disconnect();
       clearInterval(interval);
@@ -51,6 +77,31 @@ export default function Dashboard() {
       // Silencia erro de conexão
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function carregarAgendadas() {
+    try {
+      const { data } = await api.get("/campaigns");
+      setAgendadas(
+        (data as (CampanhaAgendada & { status: string })[]).filter(
+          (c) => c.status === "agendada" && c.agendarPara
+        )
+      );
+    } catch {
+      // Silencia erro
+    }
+  }
+
+  async function iniciarAgora(id: string) {
+    setIniciandoId(id);
+    try {
+      await api.post(`/campaigns/${id}/start`);
+      carregarAgendadas();
+    } catch {
+      // Silencia erro
+    } finally {
+      setIniciandoId(null);
     }
   }
 
@@ -100,6 +151,40 @@ export default function Dashboard() {
           bg={status?.conectado ? "bg-green-400/10" : "bg-red-400/10"}
         />
       </div>
+
+      {/* Campanhas agendadas */}
+      {agendadas.length > 0 && (
+        <div className="bg-bg-card rounded-xl border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-accent" />
+            Campanhas Agendadas ({agendadas.length})
+          </h2>
+          <div className="space-y-2">
+            {agendadas.map((c) => (
+              <div key={c.id} className="flex items-center justify-between p-3 bg-bg-primary rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">{c.nome}</p>
+                  <p className="text-xs text-gray-500">
+                    {c.totalContatos} contatos · {formatarBrasilia(c.agendarPara)} (Brasília)
+                  </p>
+                </div>
+                <button
+                  onClick={() => iniciarAgora(c.id)}
+                  disabled={iniciandoId === c.id}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-accent/20 text-accent-light border border-accent/30 rounded-lg text-xs hover:bg-accent/30 transition-colors disabled:opacity-40"
+                >
+                  {iniciandoId === c.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5" />
+                  )}
+                  Iniciar agora
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Status da fila */}
       {status?.filaProcessando && (

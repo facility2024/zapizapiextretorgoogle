@@ -16,6 +16,7 @@ import uploadRoutes from "./routes/upload.js";
 import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
 import { onStatusUpdate } from "./services/queue.js";
+import { iniciarScheduler } from "./services/scheduler.js";
 import { prisma } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,9 @@ onStatusUpdate((campanhaId, contatoId, status, erro) => {
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Agendador de campanhas (dispara automaticamente no horário agendado)
+iniciarScheduler();
 
 // Inicia servidor
 httpServer.listen(PORT, () => {
