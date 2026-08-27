@@ -39,7 +39,9 @@ let instanceTokenOverride = "";
 let createInstanceLog = "não executado";
 
 function getClient(token?: string): AxiosInstance {
-  const authToken = token ?? (instanceTokenOverride || WAPI_TOKEN);
+  // Prioridade: token explícito > chave da CONTA (WAPI_API_KEY) > token retornado pelo create-instance > WAPI_TOKEN.
+  // Usar a chave da conta (como o painel w-api.app faz) contorna tokens de instância corrompidos.
+  const authToken = token ?? (WAPI_API_KEY || instanceTokenOverride || WAPI_TOKEN);
   if (!api || apiToken !== authToken) {
     api = axios.create({
       baseURL: WAPI_BASE_URL,
@@ -202,8 +204,8 @@ export async function getQrCode(): Promise<QrCodeResponse> {
       throw new Error(
         `Token W-API inválido para ${WAPI_INSTANCE_ID}. ` +
           `create-instance: ${createInstanceLog}. ` +
-          `Se a instância foi apagada/resetada no painel, apague-a de fato e deixe o app recriá-la ` +
-          `(ou corrija WAPI_TOKEN no .env com o token atual da instância).`
+          `O app usa a chave da conta (WAPI_API_KEY). Verifique se WAPI_API_KEY e WAPI_INSTANCE_ID ` +
+          `estão corretos no .env e se esta instância pertence a essa conta.`
       );
     }
     if (raw.includes("IP ou porta") || raw.includes("IP or port")) {
