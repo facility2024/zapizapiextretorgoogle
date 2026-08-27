@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { io } from "socket.io-client";
 import { Send, AlertTriangle, CheckCircle, Wifi, WifiOff, Loader2, CalendarClock, Play, Pencil, X } from "lucide-react";
 import api from "../api";
+import { socket } from "../socket";
 
 interface SystemStatus {
   enviadosHoje: number;
@@ -85,7 +85,6 @@ export default function Dashboard() {
     carregarStatus();
     carregarAgendadas();
 
-    const socket = io("/", { path: "/socket.io" });
     socket.on("campaign-update", (data: CampaignUpdate) => {
       setUpdates((prev) => [data, ...prev].slice(0, 50));
       carregarStatus();
@@ -96,7 +95,7 @@ export default function Dashboard() {
       carregarAgendadas();
     }, 10000);
     return () => {
-      socket.disconnect();
+      socket.off("campaign-update");
       clearInterval(interval);
     };
   }, []);

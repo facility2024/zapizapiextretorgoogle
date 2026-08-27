@@ -17,6 +17,7 @@ import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { iniciarScheduler } from "./services/scheduler.js";
+import { registerExtractorSocket } from "./socket/extractorSocket.js";
 import { prisma } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,8 @@ app.get(/^(?!\/(api|uploads|socket\.io)).*/, (_req, res) => {
 // WebSocket — atualização em tempo real
 io.on("connection", (socket) => {
   console.log("Cliente conectado via WebSocket:", socket.id);
+
+  registerExtractorSocket(socket);
 
   socket.on("disconnect", () => {
     console.log("Cliente desconectado:", socket.id);

@@ -1,54 +1,68 @@
-import { useState } from "react";
-import { Search, Loader2, Download, AlertCircle } from "lucide-react";
-import api from "../api";
-
-interface Resultado {
-  nome: string;
-  telefone: string;
-  whatsapp: string;
-  email: string;
-  gmail: string;
-  endereco: string;
-  categoria: string;
-  avaliacao: string;
-  qtd_avaliacoes: string;
-  facebook: string;
-  instagram: string;
-  linkedin: string;
-  tiktok: string;
-  twitter: string;
-  google_maps_url: string;
-  site: string;
-}
+import { useEffect, useState } from "react";
+import { Search, Loader2, Download, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { socket } from "../socket";
+import type { Resultado } from "./ExtratorGoogle.types";
 
 export default function ExtratorGoogle() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
   const [resultados, setResultados] = useState<Resultado[]>([]);
+  const [progresso, setProgresso] = useState<{ done: number; total: number } | null>(null);
 
-  async function buscar() {
+  useEffect(() => {
+    const onStatus = (d: { message?: string }) => {
+      setStatusMsg(d.message || "");
+    };
+    const onResult = (r: Resultado) => {
+      setResultados((prev) => [...prev, r]);
+    };
+    const onProgress = (p: { done: number; total: number }) => {
+      setProgresso(p);
+    };
+    const onDone = () => {
+      setLoading(false);
+      setProgresso(null);
+      if (resultados.length === 0) {
+        setErro("Nenhuma empresa sem site encontrada para este termo.");
+      }
+    };
+    const onError = (d: { message?: string }) => {
+      setErro(d.message || "Erro ao buscar");
+      setLoading(false);
+      setProgresso(null);
+      setResultados([]);
+    };
+
+    socket.on("extractor:status", onStatus);
+    socket.on("extractor:result", onResult);
+    socket.on("extractor:progress", onProgress);
+    socket.on("extractor:done", onDone);
+    socket.on("extractor:error", onError);
+
+    return () => {
+      socket.off("extractor:status", onStatus);
+      socket.off("extractor:result", onResult);
+      socket.off("extractor:progress", onProgress);
+      socket.off("extractor:done", onDone);
+      socket.off("extractor:error", onError);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultados.length]);
+
+  function buscar() {
     if (!query.trim()) {
       setErro("Digite um termo de busca");
       return;
     }
     setLoading(true);
     setErro("");
-    try {
-      const { data } = await api.post("/extractor/search", { query: query.trim(), limit });
-      const lista: Resultado[] = data.resultados || [];
-      setResultados(lista);
-      if (lista.length === 0) {
-        setErro("Nenhuma empresa sem site encontrada para este termo.");
-      }
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } }; message?: string };
-      setErro(e.response?.data?.error || e.message || "Erro ao buscar");
-      setResultados([]);
-    } finally {
-      setLoading(false);
-    }
+    setStatusMsg("Iniciando extração…");
+    setResultados([]);
+    setProgresso(null);
+    socket.emit("extractor:search", { query: query.trim(), limit });
   }
 
   function exportarCSV() {
@@ -93,7 +107,7 @@ export default function ExtratorGoogle() {
         </div>
       )}
 
-      <div className="bg-bg-card border border-gray-800 rounded-xl p-6">
+      <div className="neon-card rounded-xl p-6">
         <div className="flex flex-col md:flex-row gap-3">
           <input
             type="text"
@@ -117,7 +131,7 @@ export default function ExtratorGoogle() {
             className="px-6 py-3 bg-accent hover:bg-accent-light disabled:opacity-40 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-glow-sm"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Buscar
+            {loading ? "Extraindo…" : "Buscar"}
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-3">
@@ -126,11 +140,28 @@ export default function ExtratorGoogle() {
         </p>
       </div>
 
+      {loading && (
+        <div className="neon-card rounded-xl p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-sm text-gray-300">
+            <Loader2 className="w-4 h-4 animate-spin text-accent" />
+            <span>{statusMsg || "Processando…"}</span>
+          </div>
+          {progresso && (
+            <span className="text-xs text-gray-500 font-display tabular-nums">
+              {progresso.done}/{progresso.total}
+            </span>
+          )}
+        </div>
+      )}
+
       {resultados.length > 0 && (
-        <div className="bg-bg-card border border-gray-800 rounded-xl p-6">
+        <div className="neon-card rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-              {resultados.length} empresas encontradas
+              <span className="flex items-center gap-2">
+                <Wifi className="w-4 h-4 text-accent" />
+                {resultados.length} empresas encontradas
+              </span>
             </h2>
             <button
               onClick={exportarCSV}
@@ -184,6 +215,11 @@ export default function ExtratorGoogle() {
               </tbody>
             </table>
           </div>
+          {loading && (
+            <p className="text-xs text-gray-500 mt-3 flex items-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin" /> recebendo resultados em tempo real…
+            </p>
+          )}
         </div>
       )}
     </div>
