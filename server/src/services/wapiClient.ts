@@ -123,6 +123,13 @@ export function marcarDesconectado(): void {
  * Isso também aloca IP/porta de instâncias LITE recém-criadas.
  */
 export async function ensureInstanceCreated(): Promise<void> {
+  // Instância já configurada via painel (WAPI_TOKEN presente):
+  // usamos o token do painel e NÃO chamamos create-instance (evita regenerar
+  // um token inválido para uma instância que já existe/paga).
+  if (WAPI_TOKEN) {
+    createInstanceLog = "ignorado (usando WAPI_TOKEN do .env)";
+    return;
+  }
   if (!WAPI_API_KEY) return;
   const client = getClient(WAPI_API_KEY);
   try {
