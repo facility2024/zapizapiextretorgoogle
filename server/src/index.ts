@@ -14,6 +14,7 @@ import { fileURLToPath } from "url";
 import wapiRoutes from "./routes/wapi.js";
 import uploadRoutes from "./routes/upload.js";
 import campaignRoutes from "./routes/campaigns.js";
+import extractorRoutes from "./routes/extractor.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { prisma } from "./db.js";
 
@@ -38,6 +39,7 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 app.use("/api/wapi", wapiRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/campaigns", campaignRoutes);
+app.use("/api/extractor", extractorRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");

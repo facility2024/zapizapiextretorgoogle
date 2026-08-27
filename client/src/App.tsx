@@ -1,9 +1,10 @@
 import { Routes, Route, NavLink } from "react-router-dom";
-import { MessageSquare, Link2, Send, History, LayoutDashboard } from "lucide-react";
+import { MessageSquare, Link2, Send, History, LayoutDashboard, MapPin } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
 import NovaCampanha from "./pages/NovaCampanha";
 import Historico from "./pages/Historico";
+import ExtratorGoogle from "./pages/ExtratorGoogle";
 
 function App() {
   return (
@@ -26,7 +27,8 @@ function App() {
             { to: "/conectar", icon: Link2, label: "Conectar" },
             { to: "/nova-campanha", icon: Send, label: "Nova Campanha" },
             { to: "/historico", icon: History, label: "Histórico" },
-          ].map(({ to, icon: Icon, label }) => (
+            { to: "/extrator-maps", icon: MapPin, label: "Extrator Maps" },
+           ].map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -52,6 +54,7 @@ function App() {
           <Route path="/conectar" element={<Conectar />} />
           <Route path="/nova-campanha" element={<NovaCampanha />} />
           <Route path="/historico" element={<Historico />} />
+          <Route path="/extrator-maps" element={<ExtratorGoogle />} />
         </Routes>
       </main>
     </div>
