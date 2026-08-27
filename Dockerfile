@@ -38,5 +38,6 @@ RUN npm run build
 
 EXPOSE 3001
 
-# Cria o banco SQLite (se não existir) e sobe o servidor (API + frontend na mesma porta)
-CMD ["sh", "-c", "cd server && npx prisma db push && npm start"]
+# Sincroniza o schema (best-effort) e sobe o servidor (API + frontend na mesma porta).
+# Usa ";" (não "&&") para o app subir mesmo se o db push falhar (schema já está no Supabase).
+CMD ["sh", "-c", "cd server && npx prisma db push; npm start"]
