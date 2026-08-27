@@ -10,7 +10,13 @@ export default function ExtratorGoogle() {
   const [erro, setErro] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [resultados, setResultados] = useState<Resultado[]>([]);
+  const [somenteWhatsapp, setSomenteWhatsapp] = useState(false);
   const [progresso, setProgresso] = useState<{ done: number; total: number } | null>(null);
+
+  const visiveis = somenteWhatsapp
+    ? resultados.filter((r) => r.whatsapp.trim() !== "")
+    : resultados;
+  const comWhatsapp = resultados.filter((r) => r.whatsapp.trim() !== "").length;
 
   useEffect(() => {
     const onStatus = (d: { message?: string }) => {
@@ -66,7 +72,7 @@ export default function ExtratorGoogle() {
   }
 
   function exportarCSV() {
-    if (resultados.length === 0) return;
+    if (visiveis.length === 0) return;
 
     const COLUNAS_BASE = [
       { key: "nome", label: "Nome" },
@@ -104,11 +110,12 @@ export default function ExtratorGoogle() {
     );
 
     const csv = "﻿" + colunas.map((c) => c.label).join(",") + "\n" + linhas.join("\n");
+    const prefixo = somenteWhatsapp ? "extrator-maps-whatsapp-" : "extrator-maps-";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `extrator-maps-${Date.now()}.csv`;
+    a.download = `${prefixo}${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -177,19 +184,31 @@ export default function ExtratorGoogle() {
 
       {resultados.length > 0 && (
         <div className="neon-card rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
               <span className="flex items-center gap-2">
                 <Wifi className="w-4 h-4 text-accent" />
-                {resultados.length} empresas encontradas
+                {resultados.length} empresas · {comWhatsapp} com WhatsApp
               </span>
             </h2>
-            <button
-              onClick={exportarCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors"
-            >
-              <Download className="w-4 h-4" /> Exportar CSV
-            </button>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={somenteWhatsapp}
+                  onChange={(e) => setSomenteWhatsapp(e.target.checked)}
+                  className="accent-[#A855F7]"
+                />
+                Somente com WhatsApp ({comWhatsapp})
+              </label>
+              <button
+                onClick={exportarCSV}
+                disabled={visiveis.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
+              >
+                <Download className="w-4 h-4" /> Exportar CSV ({visiveis.length})
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
             <table className="w-full text-xs">
@@ -207,7 +226,7 @@ export default function ExtratorGoogle() {
                 </tr>
               </thead>
               <tbody>
-                {resultados.map((r, i) => (
+                {visiveis.map((r, i) => (
                   <tr key={i} className="border-b border-gray-800/50 hover:bg-bg-primary/40">
                     <td className="py-2 px-3 text-white">{r.nome}</td>
                     <td className="py-2 px-3 font-mono">{r.telefone}</td>
