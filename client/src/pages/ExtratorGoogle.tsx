@@ -4,6 +4,42 @@ import { Search, Loader2, Download, AlertCircle, Wifi, WifiOff } from "lucide-re
 import api from "../api";
 import { socket } from "../socket";
 import type { Resultado } from "./ExtratorGoogle.types";
+import * as XLSX from "xlsx";
+
+const COLUNAS_BASE = [
+  { key: "nome", label: "Nome" },
+  { key: "telefone", label: "Telefone" },
+  { key: "whatsapp", label: "Link WhatsApp" },
+  { key: "endereco", label: "Endereço" },
+  { key: "categoria", label: "Categoria" },
+  { key: "avaliacao", label: "Avaliação" },
+  { key: "qtd_avaliacoes", label: "Qtd Avaliações" },
+  { key: "google_maps_url", label: "Google Maps" },
+  { key: "site", label: "Site" },
+] as const;
+
+const COLUNAS_OPCIONAIS = [
+  { key: "email", label: "E-mails" },
+  { key: "gmail", label: "Gmail" },
+  { key: "facebook", label: "Facebook" },
+  { key: "instagram", label: "Instagram" },
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "tiktok", label: "TikTok" },
+  { key: "twitter", label: "Twitter" },
+] as const;
+
+type Coluna = { key: string; label: string };
+
+function temDado(resultados: Resultado[], k: string) {
+  return resultados.some((r) => String((r as Record<string, unknown>)[k] ?? "").trim() !== "");
+}
+
+function colunasVisiveis(resultados: Resultado[]): Coluna[] {
+  return [
+    ...COLUNAS_BASE,
+    ...COLUNAS_OPCIONAIS.filter((c) => temDado(resultados, c.key)),
+  ];
+}
 
 export default function ExtratorGoogle() {
   const [query, setQuery] = useState("");
@@ -92,38 +128,9 @@ export default function ExtratorGoogle() {
   function exportarCSV() {
     if (visiveis.length === 0) return;
 
-    const COLUNAS_BASE = [
-      { key: "nome", label: "Nome" },
-      { key: "telefone", label: "Telefone" },
-      { key: "whatsapp", label: "Link WhatsApp" },
-      { key: "endereco", label: "Endereço" },
-      { key: "categoria", label: "Categoria" },
-      { key: "avaliacao", label: "Avaliação" },
-      { key: "qtd_avaliacoes", label: "Qtd Avaliações" },
-      { key: "google_maps_url", label: "Google Maps" },
-      { key: "site", label: "Site" },
-    ] as const;
-
-    const COLUNAS_OPCIONAIS = [
-      { key: "email", label: "E-mails" },
-      { key: "gmail", label: "Gmail" },
-      { key: "facebook", label: "Facebook" },
-      { key: "instagram", label: "Instagram" },
-      { key: "linkedin", label: "LinkedIn" },
-      { key: "tiktok", label: "TikTok" },
-      { key: "twitter", label: "Twitter" },
-    ] as const;
-
-    const temDado = (k: string) =>
-      resultados.some((r) => String((r as Record<string, unknown>)[k] ?? "").trim() !== "");
-
-    const colunas = [
-      ...COLUNAS_BASE,
-      ...COLUNAS_OPCIONAIS.filter((c) => temDado(c.key)),
-    ];
-
+    const colunas = colunasVisiveis(visiveis);
     const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const linhas = resultados.map((r) =>
+    const linhas = visiveis.map((r) =>
       colunas.map((c) => escape((r as Record<string, unknown>)[c.key])).join(",")
     );
 
@@ -141,6 +148,30 @@ export default function ExtratorGoogle() {
     a.download = `${prefixo}${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportarXLSX() {
+    if (visiveis.length === 0) return;
+
+    const colunas = colunasVisiveis(visiveis);
+    const dados = visiveis.map((r) => {
+      const linha: Record<string, unknown> = {};
+      colunas.forEach((c) => {
+        linha[c.label] = (r as Record<string, unknown>)[c.key] ?? "";
+      });
+      return linha;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dados, { header: colunas.map((c) => c.label) });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+    const prefixo =
+      filtro === "whatsapp"
+        ? "extrator-maps-whatsapp-"
+        : filtro === "email"
+        ? "extrator-maps-email-"
+        : "extrator-maps-";
+    XLSX.writeFile(wb, `${prefixo}${Date.now()}.xlsx`);
   }
 
   async function salvarNoBanco() {
@@ -288,6 +319,13 @@ export default function ExtratorGoogle() {
                 className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
               >
                 <Download className="w-4 h-4" /> Exportar CSV ({visiveis.length})
+              </button>
+              <button
+                onClick={exportarXLSX}
+                disabled={visiveis.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-bg-primary border border-gray-700 rounded-lg text-sm hover:border-accent/50 transition-colors disabled:opacity-40"
+              >
+                <Download className="w-4 h-4" /> Exportar Excel ({visiveis.length})
               </button>
               <button
                 onClick={salvarNoBanco}
