@@ -67,22 +67,43 @@ export default function ExtratorGoogle() {
 
   function exportarCSV() {
     if (resultados.length === 0) return;
-    const headers = [
-      "Nome", "Telefone", "Link WhatsApp", "E-mails", "Gmail", "Endereço",
-      "Categoria", "Avaliação", "Qtd Avaliações", "Facebook", "Instagram",
-      "LinkedIn", "TikTok", "Twitter", "Google Maps", "Site",
+
+    const COLUNAS_BASE = [
+      { key: "nome", label: "Nome" },
+      { key: "telefone", label: "Telefone" },
+      { key: "whatsapp", label: "Link WhatsApp" },
+      { key: "endereco", label: "Endereço" },
+      { key: "categoria", label: "Categoria" },
+      { key: "avaliacao", label: "Avaliação" },
+      { key: "qtd_avaliacoes", label: "Qtd Avaliações" },
+      { key: "google_maps_url", label: "Google Maps" },
+      { key: "site", label: "Site" },
+    ] as const;
+
+    const COLUNAS_OPCIONAIS = [
+      { key: "email", label: "E-mails" },
+      { key: "gmail", label: "Gmail" },
+      { key: "facebook", label: "Facebook" },
+      { key: "instagram", label: "Instagram" },
+      { key: "linkedin", label: "LinkedIn" },
+      { key: "tiktok", label: "TikTok" },
+      { key: "twitter", label: "Twitter" },
+    ] as const;
+
+    const temDado = (k: string) =>
+      resultados.some((r) => String((r as Record<string, unknown>)[k] ?? "").trim() !== "");
+
+    const colunas = [
+      ...COLUNAS_BASE,
+      ...COLUNAS_OPCIONAIS.filter((c) => temDado(c.key)),
     ];
-    const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+    const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const linhas = resultados.map((r) =>
-      [
-        r.nome, r.telefone, r.whatsapp, r.email, r.gmail, r.endereco,
-        r.categoria, r.avaliacao, r.qtd_avaliacoes, r.facebook, r.instagram,
-        r.linkedin, r.tiktok, r.twitter, r.google_maps_url, r.site,
-      ]
-        .map(escape)
-        .join(",")
+      colunas.map((c) => escape((r as Record<string, unknown>)[c.key])).join(",")
     );
-    const csv = "﻿" + headers.join(",") + "\n" + linhas.join("\n");
+
+    const csv = "﻿" + colunas.map((c) => c.label).join(",") + "\n" + linhas.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
