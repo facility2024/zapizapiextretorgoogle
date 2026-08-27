@@ -35,6 +35,8 @@ let api: AxiosInstance | null = null;
 let apiToken = "";
 // Token da instância retornado pelo create-instance (sobrepõe WAPI_TOKEN quando definido)
 let instanceTokenOverride = "";
+// Status do último create-instance (para diagnóstico no erro do QR)
+let createInstanceLog = "não executado";
 
 function getClient(token?: string): AxiosInstance {
   const authToken = token ?? (instanceTokenOverride || WAPI_TOKEN);
@@ -136,11 +138,16 @@ export async function ensureInstanceCreated(): Promise<void> {
       null;
     if (tok) {
       instanceTokenOverride = tok;
+      createInstanceLog = "ok (token retornado pela API)";
       console.log("[WAPI] Instância criada/atualizada. Usando token retornado pela API.");
+    } else {
+      createInstanceLog = "ok (sem token no retorno)";
     }
   } catch (err: unknown) {
     const error = err as { response?: { data?: unknown }; message?: string };
-    console.warn("[WAPI] create-instance (ignorado se já existir):", error.response?.data || error.message);
+    const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message || "erro";
+    createInstanceLog = `falhou: ${detail}`;
+    console.warn("[WAPI] create-instance (ignorado se já existir):", detail);
   }
 }
 
@@ -182,7 +189,15 @@ export async function getQrCode(): Promise<QrCodeResponse> {
     const raw = error.response?.data ? JSON.stringify(error.response.data) : error.message || "";
     console.error("[WAPI] Erro ao obter QR Code:", raw);
 
-    // Mensagem amigável para o erro comum de instância não iniciada
+    // Mensagem amigável para o erro comum de token/instância inválida
+    if (raw.includes("Token inválido") || raw.includes("Invalid token")) {
+      throw new Error(
+        `Token W-API inválido para ${WAPI_INSTANCE_ID}. ` +
+          `create-instance: ${createInstanceLog}. ` +
+          `Se a instância foi apagada/resetada no painel, apague-a de fato e deixe o app recriá-la ` +
+          `(ou corrija WAPI_TOKEN no .env com o token atual da instância).`
+      );
+    }
     if (raw.includes("IP ou porta") || raw.includes("IP or port")) {
       const dica = WAPI_API_KEY
         ? "Verifique se a WAPI_API_KEY está correta no .env."
