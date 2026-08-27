@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, Send, X, FileSpreadsheet, Loader2, Eye, Type } from "lucide-react";
+import { Upload, Send, X, FileSpreadsheet, Loader2, Eye, Type, Check } from "lucide-react";
 import api from "../api";
 
 interface Contato {
@@ -373,8 +373,33 @@ export default function NovaCampanha() {
               </div>
             </div>
 
+            {/* Validação por linha */}
+            {numerosLinhas.length > 0 && (
+              <div className="space-y-1 max-h-44 overflow-y-auto text-xs font-mono bg-bg-primary rounded-lg p-3 border border-gray-800">
+                {numerosLinhas.map((linha, i) => {
+                  const numRaw = (linha.split("|")[0] || "").trim();
+                  let num = numRaw.replace(/\D/g, "");
+                  if (!num.startsWith("55")) num = "55" + num;
+                  const valido = num.length >= 12 && num.length <= 13;
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      {valido ? (
+                        <Check className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                      ) : (
+                        <X className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      )}
+                      <span className={valido ? "text-green-400" : "text-red-400"}>{num}</span>
+                      {!valido && (
+                        <span className="text-red-400/70">({num.length} dígitos — inválido)</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Contadores */}
-            <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-4 text-xs mt-2">
               <span className="text-green-400">{numerosValidos} válidos</span>
               {numerosInvalidos > 0 && (
                 <span className="text-red-400">{numerosInvalidos} inválidos</span>
