@@ -73,6 +73,7 @@ export default function NovaCampanha() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploading, setUploading] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [preview, setPreview] = useState<string[]>([]);
   const [mensagemErro, setMensagemErro] = useState("");
 
@@ -179,6 +180,8 @@ export default function NovaCampanha() {
 
   // Enviar campanha
   async function handleEnviar() {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     if (!nome || !textoMensagem) {
       setMensagemErro("Preencha nome e mensagem");
       return;
@@ -241,7 +244,7 @@ export default function NovaCampanha() {
         imagensUrls: imagemUrl,
         audioUrl,
         variavelFallback: fallback || undefined,
-        contatoIds: contatosParaEnviar.map((c) => c.id),
+        contatoIds: [...new Map(contatosParaEnviar.map((c) => [c.numero, c])).values()].map((c) => c.id),
         agendarPara: modoEnvio === "agendar" ? agendarPara : undefined,
         delayEntreMsgMin: delayMin,
         delayEntreMsgMax: delayMax,
@@ -277,6 +280,7 @@ export default function NovaCampanha() {
       setMensagemErro(error.response?.data?.error || error.message || "Erro ao criar campanha");
     } finally {
       setEnviando(false);
+      enviandoRef.current = false;
     }
   }
 
