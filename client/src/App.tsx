@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
-import { LayoutDashboard, Link2, Send, History, MessageSquare, KeyRound } from "lucide-react";
+import { LayoutDashboard, Link2, Send, History, MessageSquare, KeyRound, LogOut } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
 import NovaCampanha from "./pages/NovaCampanha";
 import Historico from "./pages/Historico";
 import ExtratorGoogle from "./pages/ExtratorGoogle";
 import ApiGoogle from "./pages/ApiGoogle";
+import Login from "./pages/Login";
+import { TOKEN_STORAGE_KEY } from "./api";
 
 const ICON_NOVA_CAMPANHA =
   "https://png.pngtree.com/element_our/sm/20180626/sm_5b321c98efaa6.jpg";
@@ -49,6 +52,26 @@ function NavItem({ to, label, icon, img }: NavItemProps) {
 }
 
 function App() {
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem(TOKEN_STORAGE_KEY)
+  );
+
+  if (!token) {
+    return (
+      <Login
+        onAuthed={(t) => {
+          localStorage.setItem(TOKEN_STORAGE_KEY, t);
+          setToken(t);
+        }}
+      />
+    );
+  }
+
+  function logout() {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setToken(null);
+  }
+
   return (
     <div className="min-h-screen bg-bg-primary flex">
       <div className="noise-overlay" aria-hidden />
@@ -81,6 +104,14 @@ function App() {
           />
           <NavItem to="/api-google" label="API Google" icon={<KeyRound className="w-4 h-4" />} />
         </div>
+
+        <button
+          onClick={logout}
+          className="mt-auto flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-bg-card hover:text-white transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          Sair
+        </button>
       </nav>
 
       {/* Conteúdo principal */}

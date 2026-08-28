@@ -16,7 +16,9 @@ import uploadRoutes from "./routes/upload.js";
 import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
 import apiKeysRoutes from "./routes/apiKeys.js";
+import authRoutes from "./routes/auth.js";
 import { onStatusUpdate } from "./services/queue.js";
+import { verificarToken } from "./services/auth.js";
 import { iniciarScheduler } from "./services/scheduler.js";
 import { registerExtractorSocket } from "./socket/extractorSocket.js";
 import { prisma } from "./db.js";
@@ -37,6 +39,20 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Autenticação: protege todas as rotas /api exceto login e health
+app.use("/api", (req, res, next) => {
+  if (req.method === "OPTIONS") return next();
+  if (req.path === "/auth/login" || req.path === "/health") return next();
+  const auth = req.headers.authorization;
+  const token = auth && auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const email = token ? verificarToken(token) : null;
+  if (!email) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  next();
+});
+
 // Arquivos estáticos (uploads)
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
@@ -46,6 +62,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/extractor", extractorRoutes);
 app.use("/api/apikeys", apiKeysRoutes);
+app.use("/api/auth", authRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");
