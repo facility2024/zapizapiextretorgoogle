@@ -5,3 +5,4 @@ dist
 *.db-journal
 server/uploads/*
 !server/uploads/.gitkeep
+server/data/
