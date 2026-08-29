@@ -4,7 +4,7 @@
  *
  * Fluxo:
  *   1. Nominatim geocodifica a região (ex: "São Paulo") -> bounding box (gratuito, sem chave).
- *   2. Geoapify Places busca POIs pelo termo dentro da região (3.000 req/dia por projeto).
+ *   2. Geoapify Places busca POIs pela CATEGORIA dentro da região (3.000 req/dia por projeto).
  *   3. Filtra leads (com WhatsApp, sem site ou com Gmail) ou traz todos os dados.
  *
  * Requer GEOAPIFY_KEY no .env (uma chave de um projeto Geoapify).
@@ -103,17 +103,58 @@ async function geocodificar(local: string): Promise<Area> {
   return {};
 }
 
+/**
+ * Mapeia termos em português para categorias da Geoapify.
+ * `cat` é a categoria específica (pode não existir); `grupo` é o top-level (sempre válido) usado como fallback.
+ */
+interface MapeamentoCategoria {
+  re: RegExp;
+  cat: string;
+  grupo: string;
+}
+const MAPA_CATEGORIAS: MapeamentoCategoria[] = [
+  { re: /restaurante|pizzaria|lanche|lanchonete|comida|cafeteria|caf[ée]/i, cat: "catering.restaurant", grupo: "catering" },
+  { re: /sal[ãa]o de beleza|salao de beleza|beleza|cabeleireiro|barbearia|barber/i, cat: "commercial.hairdresser", grupo: "commercial" },
+  { re: /loja de roupas|roupas|vestu[áa]rio|moda|brech[óo]|chia/i, cat: "commercial.clothing", grupo: "commercial" },
+  { re: /padaria|p[ãa]o/i, cat: "commercial.bakery", grupo: "commercial" },
+  { re: /supermercado|mercado|conveni[êe]ncia/i, cat: "commercial.supermarket", grupo: "commercial" },
+  { re: /farm[áa]cia/i, cat: "healthcare.pharmacy", grupo: "healthcare" },
+  { re: /cl[íi]nica|consult[óo]rio|dentista|m[ée]dico/i, cat: "healthcare.clinic", grupo: "healthcare" },
+  { re: /hospital/i, cat: "healthcare.hospital", grupo: "healthcare" },
+  { re: /advogad/i, cat: "office.lawyer", grupo: "office" },
+  { re: /imobili[áa]ria/i, cat: "office.real_estate", grupo: "office" },
+  { re: /academia|fitness|gin[áa]stica/i, cat: "leisure.fitness", grupo: "leisure" },
+  { re: /pet shop|pet|veterin[áa]rio/i, cat: "commercial.pet", grupo: "commercial" },
+  { re: /hotel|pousada|motel/i, cat: "accommodation.hotel", grupo: "accommodation" },
+  { re: /oficina|mec[âa]nico|auto.?pec[çc]as/i, cat: "commercial.car_repair", grupo: "commercial" },
+  { re: /escola|col[ée]gio|educa/i, cat: "education.school", grupo: "education" },
+  { re: /igreja|templo/i, cat: "tourism", grupo: "tourism" },
+  { re: /loja|store|shop|com[ée]rcio|empresa|neg[óo]cio/i, cat: "commercial", grupo: "commercial" },
+];
+
+// Conjunto amplo de grupos comerciais — garante resultado mesmo sem categoria específica.
+const CATEGORIAS_GERAIS = "commercial,catering,service,healthcare,accommodation,tourism,leisure,office,education";
+
+function mapearCategoria(termo: string): string[] {
+  for (const m of MAPA_CATEGORIAS) {
+    if (m.re.test(termo)) return [m.cat, m.grupo, CATEGORIAS_GERAIS];
+  }
+  return [CATEGORIAS_GERAIS];
+}
+
 function mapFeature(f: any): Resultado | null {
   const p = f?.properties || {};
+  const contato = p.contact || {};
   const nome = (p.name || "").toString().trim();
   if (!nome) return null;
 
-  const telefone = (p.phone || "").toString().trim();
-  const email = (p.email || "").toString().trim();
-  const site = (p.website || p.datasource?.website || "").toString().trim();
+  const telefone = (p.phone || contato.phone || "").toString().trim();
+  const email = (p.email || contato.email || "").toString().trim();
+  const site = (p.website || contato.website || p.datasource?.website || "").toString().trim();
   const rua = `${p.housenumber ? p.housenumber + " " : ""}${p.street || ""}`.trim();
   const endereco = [rua, p.city || p.city_district || ""].filter(Boolean).join(", ");
-  const categoria = Array.isArray(p.categories) && p.categories.length ? p.categories[0] : "";
+  const cats = Array.isArray(p.categories) ? (p.categories as string[]) : [];
+  const categoria = cats.find((c) => c !== "building") || cats[0] || "";
 
   // Não pedimos rating/atmosphere de propósito: é SKU Enterprise (caro). Ficamos no tier Pro.
   return {
@@ -154,6 +195,39 @@ export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): 
   return todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
 }
 
+/** Busca paginada usando uma string de categorias fixa. */
+async function buscarPaginado(
+  categorias: string,
+  filter: string,
+  limite: number,
+  area: Area,
+  apiKey: string
+): Promise<Resultado[]> {
+  const todas: Resultado[] = [];
+  let offset = 0;
+  while (todas.length < limite) {
+    const lote = Math.min(100, limite - todas.length);
+    const { data } = await axios.get(GEOAPIFY_URL, {
+      params: { categories: categorias, filter, limit: lote, offset, lang: "pt", apiKey },
+      timeout: 20000,
+    });
+    const feats = Array.isArray(data?.features) ? data.features : [];
+    if (feats.length === 0) break;
+    for (const f of feats) {
+      const r = mapFeature(f);
+      if (r) todas.push(r);
+    }
+    offset += lote;
+    if (feats.length < lote) break;
+  }
+
+  for (const r of todas) {
+    if (!r.cidade) r.cidade = area.cidade || "";
+    if (!r.estado) r.estado = area.estado || "";
+  }
+  return todas;
+}
+
 export async function buscarEmpresasSemSite(
   query: string,
   limit = 20,
@@ -172,41 +246,30 @@ export async function buscarEmpresasSemSite(
     );
   }
 
-  let filter: string;
-  if (area.bbox) {
-    const [s, w, n, e] = area.bbox;
-    filter = `rect:${w},${s},${e},${n}`;
-  } else {
-    filter = `circle:${area.center!.lon},${area.center!.lat},6000`;
-  }
+  const filter: string = area.bbox
+    ? (() => {
+        const [s, w, n, e] = area.bbox!;
+        return `rect:${w},${s},${e},${n}`;
+      })()
+    : `circle:${area.center!.lon},${area.center!.lat},6000`;
 
   const limite = Math.min(Math.max(limit, 1), 5000);
-  const todas: Resultado[] = [];
-  let offset = 0;
+  const candidatos = mapearCategoria(termo);
 
-  // Geoapify pagina em lotes de até 100; repetimos até atingir o limite pedido.
-  while (todas.length < limite) {
-    const lote = Math.min(100, limite - todas.length);
-    const { data } = await axios.get(GEOAPIFY_URL, {
-      params: { text: termo, filter, limit: lote, offset, lang: "pt", apiKey },
-      timeout: 20000,
-    });
-    const feats = Array.isArray(data?.features) ? data.features : [];
-    if (feats.length === 0) break;
-    for (const f of feats) {
-      const r = mapFeature(f);
-      if (r) todas.push(r);
+  // Tenta a categoria específica; se a Geoapify rejeitar (400), cai no grupo e depois no geral.
+  let ultimoErro: unknown;
+  for (const cats of candidatos) {
+    try {
+      const todas = await buscarPaginado(cats, filter, limite, area, apiKey);
+      const unicas = filtrarPorModo(todas, modo);
+      return unicas.slice(0, Math.max(1, limite));
+    } catch (e: any) {
+      if (e?.response?.status === 400) {
+        ultimoErro = e;
+        continue; // tenta o próximo candidato (grupo / geral)
+      }
+      throw e;
     }
-    offset += lote;
-    if (feats.length < lote) break;
   }
-
-  // Preenche cidade/estado da região geocodificada quando faltarem no POI.
-  for (const r of todas) {
-    if (!r.cidade) r.cidade = area.cidade || "";
-    if (!r.estado) r.estado = area.estado || "";
-  }
-
-  const unicas = filtrarPorModo(todas, modo);
-  return unicas.slice(0, Math.max(1, limite));
+  throw ultimoErro ?? new Error("Falha ao consultar o Geoapify");
 }
