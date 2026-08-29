@@ -44,7 +44,9 @@ export function parseBrasilia(local: string): Date {
   const [hh, mm, ssRaw] = timePartRaw.split(":").map(Number);
   const ss = Number.isFinite(ssRaw) ? ssRaw : 0;
   const wallClockUTC = Date.UTC(y, m - 1, d, hh, mm, ss);
-  return new Date(wallClockUTC - offsetBrasiliaMs(new Date(wallClockUTC)));
+  // O horário informado é de Brasília (local). Para obter o instante UTC,
+  // SOMAMOS o offset (Brasília fica atrás do UTC: 10:30 BRT = 13:30 UTC).
+  return new Date(wallClockUTC + offsetBrasiliaMs(new Date(wallClockUTC)));
 }
 
 /**

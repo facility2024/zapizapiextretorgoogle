@@ -72,7 +72,18 @@ router.post("/", async (req, res) => {
       nome,
       tipoDisparo,
       textoMensagem,
-      imagemUrl: imagemUrl || (imagensUrls ? (JSON.parse(imagensUrls)[0] ?? null) : null),
+      imagemUrl:
+        imagemUrl ||
+        (imagensUrls
+          ? (() => {
+              try {
+                const arr = JSON.parse(imagensUrls);
+                return Array.isArray(arr) ? (arr[0] ?? null) : null;
+              } catch {
+                return null;
+              }
+            })()
+          : null),
       imagensUrls: imagensUrls || null,
       audioUrl: audioUrl || null,
       variavelFallback: variavelFallback || null,
@@ -115,28 +126,28 @@ router.post("/:id/start", async (req, res) => {
   }
 
   await queue.enfileirarCampanha(campanha.id);
-  queue.processarFila().catch((e) => console.error("[FILA] Erro:", e));
+  queue.processarFila(campanha.id).catch((e) => console.error("[FILA] Erro:", e));
 
   res.json({ message: "Campanha iniciada", status: "em_andamento" });
 });
 
 // POST /api/campaigns/:id/pause — pausa campanha
 router.post("/:id/pause", async (req, res) => {
-  queue.pausarFila();
+  queue.pausarFila(req.params.id);
   await prisma.campanha.update({ where: { id: req.params.id }, data: { status: "pausada" } });
   res.json({ message: "Campanha pausada" });
 });
 
 // POST /api/campaigns/:id/resume — retoma campanha
 router.post("/:id/resume", async (req, res) => {
-  queue.retomarFila();
+  queue.retomarFila(req.params.id);
   await prisma.campanha.update({ where: { id: req.params.id }, data: { status: "em_andamento" } });
   res.json({ message: "Campanha retomada" });
 });
 
 // POST /api/campaigns/:id/cancel — cancela campanha
 router.post("/:id/cancel", async (req, res) => {
-  queue.cancelarFila();
+  queue.cancelarFila(req.params.id);
   await prisma.campanha.update({ where: { id: req.params.id }, data: { status: "cancelada" } });
   res.json({ message: "Campanha cancelada" });
 });
@@ -247,9 +258,9 @@ router.get("/system/status", async (_req, res) => {
     totalCampanhas,
     agendadas,
     conectado: statusConexao.status === "connected",
-    filaProcessando: queue.isProcessando(),
-    filaPausado: queue.isPausado(),
-    tamanhoFila: queue.getTamanhoFila(),
+    filaProcessando: queue.isProcessandoAny(),
+    filaPausado: queue.isPausadoAny(),
+    tamanhoFila: queue.getTamanhoFilaTotal(),
   });
 });
 

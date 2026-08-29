@@ -29,7 +29,7 @@ export function iniciarScheduler(): void {
           data: { status: "em_andamento" },
         });
         await queue.enfileirarCampanha(campanha.id);
-        queue.processarFila().catch((e) => console.error("[SCHEDULER] Erro ao processar:", e));
+        queue.processarFila(campanha.id).catch((e) => console.error("[SCHEDULER] Erro ao processar:", e));
         console.log(`[SCHEDULER] Campanha agendada ${campanha.id} iniciada automaticamente`);
       }
     } catch (err) {
