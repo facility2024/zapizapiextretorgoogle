@@ -346,6 +346,7 @@ export default function ExtratorGoogle() {
             <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
             endereço, bairro, cidade, estado, CEP, site e redes (via OpenStreetMap/Geoapify, gratuito).
             O Geoapify usa rotação de chaves (GEOAPIFY_KEYS no .env, vírgula-separadas) para multiplicar a cota diária gratuita.
+            Atenção: a cota de 3.000 req/dia é POR PROJETO — use uma chave de cada projeto Geoapify diferente para somar as cotas. Dados: Powered by Geoapify.
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".
           </p>
       </div>
