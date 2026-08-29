@@ -20,7 +20,7 @@ function extrairNumero(raw?: string): string {
 
 // POST /api/extractor/search
 router.post("/search", async (req, res) => {
-  const { query, limit } = req.body as { query?: string; limit?: number };
+  const { query, limit, modo } = req.body as { query?: string; limit?: number; modo?: "leads" | "completo" };
 
   if (!query || !query.trim()) {
     res.status(400).json({ error: "query é obrigatório" });
@@ -29,7 +29,7 @@ router.post("/search", async (req, res) => {
 
   try {
     const limite = Math.min(Number(limit) || 20, 200);
-    const resultados = await buscarEmpresasSemSite(query.trim(), limite);
+    const resultados = await buscarEmpresasSemSite(query.trim(), limite, modo === "completo" ? "completo" : "leads");
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {
     res.status(502).json({ error: err?.message || "Erro ao consultar o OpenStreetMap" });
@@ -59,14 +59,14 @@ router.post("/save", async (req, res) => {
     const contato = existente
       ? await prisma.contato.update({
           where: { numero },
-          data: { nome: l.nome || existente.nome, empresa: l.categoria || existente.empresa, extras },
+          data: { nome: l.nome || existente.nome, empresa: l.categoria || existente.empresa, cidade: l.cidade || existente.cidade, extras },
         })
       : await prisma.contato.create({
           data: {
             numero,
             nome: l.nome || null,
             empresa: l.categoria || null,
-            cidade: null,
+            cidade: l.cidade || null,
             extras,
           },
         });

@@ -11,7 +11,7 @@ import { buscarEmpresasSemSite } from "../services/overpassScraper.js";
 export function registerExtractorSocket(socket: Socket) {
   let running = false;
 
-  socket.on("extractor:search", async (payload: { query?: string; limit?: number }) => {
+  socket.on("extractor:search", async (payload: { query?: string; limit?: number; modo?: "leads" | "completo" }) => {
     const query = payload?.query?.trim();
     if (!query) {
       socket.emit("extractor:error", { message: "query é obrigatório" });
@@ -22,16 +22,19 @@ export function registerExtractorSocket(socket: Socket) {
       return;
     }
 
+    const modo = payload?.modo === "completo" ? "completo" : "leads";
+
     running = true;
     try {
       const limite = Math.min(Number(payload.limit) || 20, 200);
       socket.emit("extractor:status", { stage: "searching", message: "Buscando empresas no OpenStreetMap…" });
 
-      const empresas = await buscarEmpresasSemSite(query, limite);
+      const empresas = await buscarEmpresasSemSite(query, limite, modo);
 
+      const rotulo = modo === "completo" ? "todas as empresas (dados completos)" : "empresas (sem site ou com Gmail)";
       socket.emit("extractor:status", {
         stage: "details",
-        message: `${empresas.length} empresas encontradas (sem site ou com Gmail)`,
+        message: `${empresas.length} ${rotulo} encontradas`,
         total: empresas.length,
       });
 

@@ -5,6 +5,10 @@ export interface Resultado {
   email: string;
   gmail: string;
   endereco: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  cep: string;
   categoria: string;
   avaliacao: string;
   qtd_avaliacoes: string;
@@ -15,4 +19,6 @@ export interface Resultado {
   twitter: string;
   google_maps_url: string;
   site: string;
+  lat: string;
+  lon: string;
 }

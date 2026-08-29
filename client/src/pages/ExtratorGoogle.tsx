@@ -11,6 +11,8 @@ const COLUNAS_BASE = [
   { key: "telefone", label: "Telefone" },
   { key: "whatsapp", label: "Link WhatsApp" },
   { key: "endereco", label: "Endereço" },
+  { key: "bairro", label: "Bairro" },
+  { key: "cidade", label: "Cidade" },
   { key: "categoria", label: "Categoria" },
   { key: "avaliacao", label: "Avaliação" },
   { key: "qtd_avaliacoes", label: "Qtd Avaliações" },
@@ -21,11 +23,15 @@ const COLUNAS_BASE = [
 const COLUNAS_OPCIONAIS = [
   { key: "email", label: "E-mails" },
   { key: "gmail", label: "Gmail" },
+  { key: "estado", label: "Estado" },
+  { key: "cep", label: "CEP" },
   { key: "facebook", label: "Facebook" },
   { key: "instagram", label: "Instagram" },
   { key: "linkedin", label: "LinkedIn" },
   { key: "tiktok", label: "TikTok" },
   { key: "twitter", label: "Twitter" },
+  { key: "lat", label: "Lat" },
+  { key: "lon", label: "Lon" },
 ] as const;
 
 type Coluna = { key: string; label: string };
@@ -41,9 +47,30 @@ function colunasVisiveis(resultados: Resultado[]): Coluna[] {
   ];
 }
 
+function renderCelula(r: Resultado, k: string) {
+  const s = String((r as Record<string, unknown>)[k] ?? "").trim();
+  if (!s || s === "(sem site)") return <>-</>;
+  if (k === "whatsapp") {
+    return (
+      <a href={s} target="_blank" rel="noreferrer" className="text-green-400 hover:underline">
+        {s.replace("https://wa.me/", "")}
+      </a>
+    );
+  }
+  if (k === "google_maps_url") {
+    return (
+      <a href={s} target="_blank" rel="noreferrer" className="text-accent-light hover:underline">
+        ver
+      </a>
+    );
+  }
+  return <span className="text-gray-400">{s}</span>;
+}
+
 export default function ExtratorGoogle() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
+  const [modo, setModo] = useState<"leads" | "completo">("leads");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
@@ -86,7 +113,11 @@ export default function ExtratorGoogle() {
       setLoading(false);
       setProgresso(null);
       if (resultados.length === 0) {
-        setErro("Nenhuma empresa (sem site ou com Gmail) encontrada para este termo.");
+        setErro(
+          modo === "completo"
+            ? "Nenhuma empresa encontrada para este termo."
+            : "Nenhuma empresa (sem site ou com Gmail) encontrada para este termo."
+        );
       }
     };
     const onError = (d: { message?: string }) => {
@@ -122,7 +153,7 @@ export default function ExtratorGoogle() {
     setStatusMsg("Iniciando extração…");
     setResultados([]);
     setProgresso(null);
-    socket.emit("extractor:search", { query: query.trim(), limit });
+    socket.emit("extractor:search", { query: query.trim(), limit, modo });
   }
 
   function exportarCSV() {
@@ -226,7 +257,7 @@ export default function ExtratorGoogle() {
       <div>
         <h1 className="text-2xl font-bold">Extrator do Google Maps</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Busca empresas locais (sem site ou com Gmail) e extrai WhatsApp (via OpenStreetMap, gratuito)
+          Busca empresas locais via OpenStreetMap (gratuito): leads sem site/Gmail ou todos os dados da categoria/região
         </p>
       </div>
 
@@ -263,9 +294,33 @@ export default function ExtratorGoogle() {
             {loading ? "Extraindo…" : "Buscar"}
           </button>
         </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="text-xs text-gray-500">Modo:</span>
+            <button
+              onClick={() => setModo("leads")}
+              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                modo === "leads"
+                  ? "bg-accent/20 text-accent-light border-accent/40"
+                  : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
+              }`}
+            >
+              Leads (sem site / Gmail)
+            </button>
+            <button
+              onClick={() => setModo("completo")}
+              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                modo === "completo"
+                  ? "bg-accent/20 text-accent-light border-accent/40"
+                  : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
+              }`}
+            >
+              Todos os dados (completo)
+            </button>
+          </div>
           <p className="text-xs text-gray-500 mt-3">
-            Retorna empresas <span className="text-accent-light">sem site</span> ou com{" "}
-            <span className="text-accent-light">Gmail</span>, via OpenStreetMap (gratuito, sem chave de API).
+            <span className="text-accent-light">Leads</span>: empresas sem site ou com Gmail (para disparo).{" "}
+            <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
+            endereço, bairro, cidade, estado, CEP, site e redes (via OpenStreetMap, gratuito).
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".
           </p>
       </div>
@@ -374,42 +429,17 @@ export default function ExtratorGoogle() {
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-bg-card">
                 <tr className="border-b border-gray-800 text-gray-500">
-                  <th className="text-left py-2 px-3">Nome</th>
-                  <th className="text-left py-2 px-3">Telefone</th>
-                  <th className="text-left py-2 px-3">WhatsApp</th>
-                  <th className="text-left py-2 px-3">E-mail</th>
-                  <th className="text-left py-2 px-3">Endereço</th>
-                  <th className="text-left py-2 px-3">Categoria</th>
-                  <th className="text-left py-2 px-3">Avaliação</th>
-                  <th className="text-left py-2 px-3">Instagram</th>
-                  <th className="text-left py-2 px-3">Facebook</th>
+                  {colunasVisiveis(visiveis).map((c) => (
+                    <th key={c.key} className="text-left py-2 px-3 whitespace-nowrap">{c.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {visiveis.map((r, i) => (
                   <tr key={i} className="border-b border-gray-800/50 hover:bg-bg-primary/40">
-                    <td className="py-2 px-3 text-white">{r.nome}</td>
-                    <td className="py-2 px-3 font-mono">{r.telefone}</td>
-                    <td className="py-2 px-3">
-                      {r.whatsapp ? (
-                        <a
-                          href={r.whatsapp}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-green-400 hover:underline"
-                        >
-                          {r.whatsapp.replace("https://wa.me/", "")}
-                        </a>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-accent-light">{r.email || "-"}</td>
-                    <td className="py-2 px-3 text-gray-400">{r.endereco || "-"}</td>
-                    <td className="py-2 px-3 text-gray-400">{r.categoria || "-"}</td>
-                    <td className="py-2 px-3 text-gray-400">{r.avaliacao || "-"}</td>
-                    <td className="py-2 px-3 text-gray-400">{r.instagram || "-"}</td>
-                    <td className="py-2 px-3 text-gray-400">{r.facebook || "-"}</td>
+                    {colunasVisiveis(visiveis).map((c) => (
+                      <td key={c.key} className="py-2 px-3 whitespace-nowrap">{renderCelula(r, c.key)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -445,7 +475,7 @@ export default function ExtratorGoogle() {
               className="w-full mt-1 mb-1 bg-bg-primary border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none resize-none"
             />
             <p className="text-[11px] text-gray-500 mb-4">
-              Variáveis disponíveis: {"{{nome}}"}, {"{{email}}"}, {"{{endereco}}"}, {"{{categoria}}"}…
+              Variáveis disponíveis: {"{{nome}}"}, {"{{email}}"}, {"{{endereco}}"}, {"{{bairro}}"}, {"{{cidade}}"}, {"{{categoria}}"}…
             </p>
 
             <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none mb-2">
