@@ -86,7 +86,7 @@ export default function ExtratorGoogle() {
       setLoading(false);
       setProgresso(null);
       if (resultados.length === 0) {
-        setErro("Nenhuma empresa sem site encontrada para este termo.");
+        setErro("Nenhuma empresa (sem site ou com Gmail) encontrada para este termo.");
       }
     };
     const onError = (d: { message?: string }) => {
@@ -226,7 +226,7 @@ export default function ExtratorGoogle() {
       <div>
         <h1 className="text-2xl font-bold">Extrator do Google Maps</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Busca empresas locais sem site e extrai WhatsApp e contatos (via OpenStreetMap, gratuito)
+          Busca empresas locais (sem site ou com Gmail) e extrai WhatsApp (via OpenStreetMap, gratuito)
         </p>
       </div>
 
@@ -243,7 +243,7 @@ export default function ExtratorGoogle() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buscar()}
-            placeholder='Ex: restaurantes em São Paulo, "salão de beleza"'
+            placeholder='Ex: "Loja de roupas, São Paulo" ou "restaurantes em Bairro Centro, São Paulo"'
             className="flex-1 bg-bg-primary border border-gray-700 rounded-lg px-4 py-3 text-sm focus:border-accent focus:outline-none"
           />
           <input
@@ -264,8 +264,9 @@ export default function ExtratorGoogle() {
           </button>
         </div>
           <p className="text-xs text-gray-500 mt-3">
-            Retorna apenas empresas <span className="text-accent-light">sem site</span>, via OpenStreetMap
-            (gratuito, sem chave de API). Informe a cidade, ex: "restaurantes em São Paulo".
+            Retorna empresas <span className="text-accent-light">sem site</span> ou com{" "}
+            <span className="text-accent-light">Gmail</span>, via OpenStreetMap (gratuito, sem chave de API).
+            Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".
           </p>
       </div>
 

@@ -52,6 +52,41 @@ const TAGS_CATEGORIA = [
   "trade",
 ];
 
+/**
+ * Mapeia termos em português para tags reais do OpenStreetMap.
+ * Sem isso, "loja de roupas" não casa com nenhuma tag (OSM usa "shop=clothes").
+ */
+interface MapeamentoCategoria {
+  re: RegExp;
+  key: string;
+  value: string;
+}
+const MAPA_CATEGORIAS: MapeamentoCategoria[] = [
+  { re: /restaurante|pizzaria|lanche|lanchonete|comida|cafeteria|caf[ée]/i, key: "amenity", value: "restaurant" },
+  { re: /sal[ãa]o de beleza|salao de beleza|beleza|cabeleireiro|barbearia|barber/i, key: "shop", value: "hairdresser" },
+  { re: /loja de roupas|roupas|vestu[áa]rio|moda|brech[óo]|chia/i, key: "shop", value: "clothes" },
+  { re: /padaria|p[ãa]o/i, key: "shop", value: "baker" },
+  { re: /supermercado|mercado|conveni[êe]ncia/i, key: "shop", value: "supermarket" },
+  { re: /farm[áa]cia/i, key: "amenity", value: "pharmacy" },
+  { re: /cl[íi]nica|consult[óo]rio|dentista|m[ée]dico|hospital/i, key: "amenity", value: "clinic" },
+  { re: /advogad/i, key: "office", value: "lawyer" },
+  { re: /imobili[áa]ria/i, key: "office", value: "estate_agent" },
+  { re: /academia|fitness|gin[áa]stica/i, key: "leisure", value: "fitness_centre" },
+  { re: /pet shop|pet|veterin[áa]rio/i, key: "shop", value: "pet" },
+  { re: /hotel|pousada|motel/i, key: "tourism", value: "hotel" },
+  { re: /oficina|mec[âa]nico|auto.?pec[çc]as/i, key: "shop", value: "car_repair" },
+  { re: /escola|col[ée]gio|educa/i, key: "amenity", value: "school" },
+  { re: /igreja|templo/i, key: "amenity", value: "place_of_worship" },
+  { re: /loja|store|shop|com[ée]rcio|empresa|neg[óo]cio/i, key: "shop", value: "yes" },
+];
+
+function mapearCategoria(termo: string): { key: string; value: string } | null {
+  for (const m of MAPA_CATEGORIAS) {
+    if (m.re.test(termo)) return { key: m.key, value: m.value };
+  }
+  return null;
+}
+
 interface Area {
   bbox?: [number, number, number, number]; // [south, west, north, east]
   center?: { lat: number; lon: number };
@@ -62,15 +97,22 @@ function escapeRegex(s: string): string {
 }
 
 function parseQuery(query: string): { termo: string; local: string } {
-  const m = query.match(/^(.*?)\s+em\s+(.+)$/i);
+  const m = query.match(
+    /^(.*?)\s+(?:em|no|na|nos|nas|no bairro|em bairro|dentro do|dentro da)\s+(.+)$/i
+  );
   if (m) return { termo: m[1].trim(), local: m[2].trim() };
+  // Aceita também o formato "categoria, local"
+  const virgula = query.indexOf(",");
+  if (virgula !== -1) {
+    return { termo: query.slice(0, virgula).trim(), local: query.slice(virgula + 1).trim() };
+  }
   return { termo: query.trim(), local: "" };
 }
 
 async function geocodificar(local: string): Promise<Area> {
   try {
     const { data } = await axios.get(NOMINATIM_URL, {
-      params: { format: "jsonv2", limit: 1, q: local },
+      params: { format: "jsonv2", limit: 1, q: local, countrycodes: "br" },
       headers: { "User-Agent": "zapizapi/1.0 (extrator openstreetmap)" },
       timeout: 15000,
     });
@@ -92,21 +134,35 @@ async function geocodificar(local: string): Promise<Area> {
   return {};
 }
 
-function buildQuery(kw: string, area: Area): string {
+function buildQuery(
+  kw: string,
+  area: Area,
+  mapa?: { key: string; value: string },
+  limite = 200
+): string {
   const areaClause = area.bbox
     ? `(${area.bbox[0]},${area.bbox[1]},${area.bbox[2]},${area.bbox[3]})`
     : area.center
-    ? `(around:9000,${area.center.lat},${area.center.lon})`
+    ? `(around:5000,${area.center.lat},${area.center.lon})`
     : "";
-  const regex = escapeRegex(kw);
-  const unions = TAGS_CATEGORIA.map(
-    (tag) => `  nwr["${tag}"~"${regex}",i]${areaClause};`
-  ).join("\n");
+  let corpo: string;
+  if (mapa) {
+    // Categoria conhecida: filtro exato por tag (bem mais preciso e rápido)
+    corpo = `  nwr["${mapa.key}"="${mapa.value}"]${areaClause};`;
+  } else {
+    // Categoria livre: busca por substring nas tags conhecidas
+    const regex = escapeRegex(kw);
+    corpo = TAGS_CATEGORIA.map(
+      (tag) => `  nwr["${tag}"~"${regex}",i]${areaClause};`
+    ).join("\n");
+  }
+  // Limita a quantidade de elementos retornados para evitar timeout em cidades grandes.
+  const cap = Math.min(Math.max(limite, 1), 500);
   return `[out:json][timeout:25];
 (
-${unions}
+${corpo}
 );
-out center;`;
+out ${cap} center;`;
 }
 
 async function fetchOverpass(query: string): Promise<any[]> {
@@ -188,21 +244,26 @@ export async function buscarEmpresasSemSite(query: string, limit = 20): Promise<
     );
   }
 
-  const elements = await fetchOverpass(buildQuery(termo, area));
+  const mapa = mapearCategoria(termo);
+  const elements = await fetchOverpass(buildQuery(termo, area, mapa ?? undefined, limit));
   const todas = elements.map(mapElement).filter((r): r is Resultado => r !== null);
 
-  // Prioriza empresas sem site (o objetivo do extrator); se não houver nenhuma, retorna as demais.
+  // Inclui empresas SEM site OU que possuem e-mail Gmail (lead útil para contato).
   const semSite = todas.filter((e) => !e.site || e.site === "(sem site)");
-  const base = semSite.length > 0 ? semSite : todas;
+  const comGmail = todas.filter((e) => e.email.toLowerCase().includes("gmail.com"));
+  const candidatas = [...semSite, ...comGmail];
 
   // Dedupe por nome+telefone
   const vistos = new Set<string>();
-  const unicas = base.filter((e) => {
+  const unicas = candidatas.filter((e) => {
     const chave = `${e.nome}|${e.telefone}`.toLowerCase();
     if (vistos.has(chave)) return false;
     vistos.add(chave);
     return true;
   });
 
-  return unicas.slice(0, Math.max(1, limit));
+  // Se não houver nenhuma das categorias, retorna o que vier (evita lista vazia).
+  const base = unicas.length > 0 ? unicas : todas;
+
+  return base.slice(0, Math.max(1, limit));
 }

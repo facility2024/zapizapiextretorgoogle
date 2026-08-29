@@ -31,7 +31,7 @@ export function registerExtractorSocket(socket: Socket) {
 
       socket.emit("extractor:status", {
         stage: "details",
-        message: `${empresas.length} empresas sem site encontradas`,
+        message: `${empresas.length} empresas encontradas (sem site ou com Gmail)`,
         total: empresas.length,
       });
 
