@@ -226,7 +226,7 @@ export default function ExtratorGoogle() {
       <div>
         <h1 className="text-2xl font-bold">Extrator do Google Maps</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Busca empresas locais sem site e extrai WhatsApp, e-mail e redes sociais (via RapidAPI)
+          Busca empresas locais sem site e extrai WhatsApp e contatos (via OpenStreetMap, gratuito)
         </p>
       </div>
 
@@ -263,10 +263,10 @@ export default function ExtratorGoogle() {
             {loading ? "Extraindo…" : "Buscar"}
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-3">
-          Retorna apenas empresas <span className="text-accent-light">sem site</span>. Configure a{" "}
-          <code>RAPIDAPI_KEY</code> no servidor.
-        </p>
+          <p className="text-xs text-gray-500 mt-3">
+            Retorna apenas empresas <span className="text-accent-light">sem site</span>, via OpenStreetMap
+            (gratuito, sem chave de API). Informe a cidade, ex: "restaurantes em São Paulo".
+          </p>
       </div>
 
       {loading && (

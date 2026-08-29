@@ -8,7 +8,7 @@ Zapizapi — app de disparo e agendamento de mensagens WhatsApp via W-API (wapi.
 
 ```bash
 # Instalar dependências (raiz + server + client — NÃO é workspace, instale em cada pasta)
-npm install && cd server && npm install && cd ../client && npm run install
+npm install && cd server && npm install && cd ../client && npm install
 
 # Rodar tudo (server :3001 + client :5173 via concurrently)
 npm run dev
@@ -34,9 +34,11 @@ Não há `npm test`, lint nem format configurados — não procure esses comando
 
 Copie `server/.env.example` para `server/.env` e preencha:
 - `WAPI_INSTANCE_ID` — ID da instância W-API
-- `WAPI_TOKEN` — Token de autenticação
-- `WAPI_BASE_URL` — URL base (padrão no `.env.example`: https://api.w-api.app)
-- `DATABASE_URL="file:./dev.db"` — SQLite local
+- `WAPI_TOKEN` — Token de autenticação da instância
+- `WAPI_API_KEY` — Chave da CONTA w-api.app (diferente do token); usada para criar/auto-provisionar a instância via `POST /v1/client/create-instance`
+- `WAPI_BASE_URL` — padrão `https://api.w-api.app` (definido em `wapiClient.ts` e no `.env.example`)
+- `DATABASE_URL` — SQLite local: `file:./dev.db`; em deploy Docker: `file:/app/data/dev.db`
+- `RAPIDAPI_KEY` — fallback para o extrator do Google Maps (só quando nenhuma chave estiver cadastrada em "API Google")
 
 Nunca commite o `.env` (está no `.gitignore`).
 
@@ -52,9 +54,9 @@ Nunca commite o `.env` (está no `.gitignore`).
 ## Convenções
 
 - Código e comentários em português.
-- Services isolados e testáveis em `server/src/services/`: `messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`.
+- Toda a lógica de domínio fica em `server/src/services/` (ex.: `messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`, `overpassScraper.ts`, `scheduler.ts`, `auth.ts`, `timezone.ts`).
 - **Imports do server usam extensão `.js`** mesmo em arquivos `.ts` (module `NodeNext`/`ESM`). Ao editar imports, mantenha o `.js` — senão quebra em runtime.
-- **O server roda `.ts` direto via `tsx`** (scripts `dev`/`start`). Não rode `tsc` no server para produção; o Docker/build só compila o client.
+- **O server roda `.ts` direto via `tsx`** (scripts `dev`/`start`). O deploy não usa o build compilado do server (o script `build` roda `tsc`, mas o Docker sobe via `tsx`); não dependa de saída compilada.
 - Spintax: `{op1|op2|op3}` é resolvido DEPOIS das variáveis `{{var}}`.
 - Saudações (`messageParser.ts`): `{{ola}}` é dinâmico (Bom dia/tarde/noite pelo horário); `{{bom_dia}}`/`{{boa_tarde}}`/`{{boa_noite}}` são fixos. `{{numero}}`, `{{nome}}`, `{{empresa}}`, `{{cidade}}` e qualquer coluna extra da planilha funcionam.
 - Delay entre envios é aleatório dentro de um range configurável (não fixo).
@@ -67,6 +69,7 @@ Nunca commite o `.env` (está no `.gitignore`).
 - Planilha (`xlsx`) precisa de coluna de número (aliases: numero, telefone, whatsapp, phone).
 - Números são normalizados com DDI 55 automaticamente.
 - O script `db:seed` existe no `package.json` mas aponta para `prisma/seed.ts` que NÃO existe — não use.
+- `docker-compose.yml` define `WAPI_BASE_URL` default como `https://api.w-api.chat` (domínio errado); o correto é `https://api.w-api.app` (ver `wapiClient.ts`/`.env.example`). Prefira rodar via `Dockerfile`/`npm start`.
 
 ## Deploy (Docker / Easypanel)
 
@@ -75,5 +78,6 @@ Imagem única (raiz `Dockerfile`): builda o client e sobe o server servindo API 
 - **Build**: `npx prisma generate && npx prisma db push && npm run build`
 - **Start**: `npm start` (sobe o server via `tsx`)
 - **Porta**: `PORT` (padrão 3001)
-- **Env**: `WAPI_INSTANCE_ID`, `WAPI_TOKEN`, `WAPI_BASE_URL`, `DATABASE_URL="file:./dev.db"`, `PORT`
+- **Env**: `WAPI_INSTANCE_ID`, `WAPI_TOKEN`, `WAPI_BASE_URL`, `DATABASE_URL="file:/app/data/dev.db"`, `PORT`
+- ⚠️ O `Dockerfile` NÃO roda `prisma db push` (o comentário dentro dele está errado). Sem isso o app sobe mas as tabelas não existem e quebra em runtime. Garanta o `db push` (via o comando de Build acima) ou rode manualmente no container.
 - **Persistência**: o SQLite grava em `/app/data/dev.db` e há uploads em `server/uploads` — monte volumes em `/app/data` e `/app/server/uploads` (NUNCA monte o `/app/server` inteiro, senão o volume vazio sobrescreve o código do server). Defina `DATABASE_URL=file:/app/data/dev.db` na deploy. Para Postgres/Supabase, troque `DATABASE_URL` e adapte `db.ts`/`schema.prisma` (espelho em `server/supabase.sql`).

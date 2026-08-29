@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, Pause, RotateCcw, Trash2, Loader2 } from "lucide-react";
+import { Play, Pause, RotateCcw, Trash2, X, Loader2 } from "lucide-react";
 import api from "../api";
 
 interface Campanha {
@@ -47,6 +47,16 @@ export default function Historico() {
   async function acaoCampanha(id: string, acao: "start" | "pause" | "resume" | "cancel") {
     try {
       await api.post(`/campaigns/${id}/${acao}`);
+      carregarCampanhas();
+    } catch {
+      // Silencia
+    }
+  }
+
+  async function excluirCampanha(id: string) {
+    if (!confirm("Excluir esta campanha e todos os seus dados (envios e vínculos)?")) return;
+    try {
+      await api.delete(`/campaigns/${id}`);
       carregarCampanhas();
     } catch {
       // Silencia
@@ -127,9 +137,16 @@ export default function Historico() {
                         className="p-2 bg-red-400/10 text-red-400 rounded-lg hover:bg-red-400/20 transition-colors"
                         title="Cancelar"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <X className="w-4 h-4" />
                       </button>
                     )}
+                    <button
+                      onClick={() => excluirCampanha(c.id)}
+                      className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors"
+                      title="Excluir campanha e dados"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

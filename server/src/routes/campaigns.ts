@@ -141,6 +141,20 @@ router.post("/:id/cancel", async (req, res) => {
   res.json({ message: "Campanha cancelada" });
 });
 
+// DELETE /api/campaigns/:id — exclui campanha e seus dados (envios e vínculos)
+router.delete("/:id", async (req, res) => {
+  const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });
+  if (!campanha) {
+    res.status(404).json({ error: "Campanha não encontrada" });
+    return;
+  }
+  // Remove os dados filhos antes da campanha (sem onDelete cascade no schema)
+  await prisma.envio.deleteMany({ where: { campanhaId: req.params.id } });
+  await prisma.campanhaContato.deleteMany({ where: { campanhaId: req.params.id } });
+  await prisma.campanha.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
+
 // POST /api/campaigns/:id/reschedule — altera a data de agendamento
 router.post("/:id/reschedule", async (req, res) => {
   const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });

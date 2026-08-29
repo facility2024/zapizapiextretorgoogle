@@ -6,7 +6,6 @@ import {
   Send,
   History,
   MessageSquare,
-  KeyRound,
   LogOut,
   Menu,
   X,
@@ -16,7 +15,6 @@ import Conectar from "./pages/Conectar";
 import NovaCampanha from "./pages/NovaCampanha";
 import Historico from "./pages/Historico";
 import ExtratorGoogle from "./pages/ExtratorGoogle";
-import ApiGoogle from "./pages/ApiGoogle";
 import Login from "./pages/Login";
 import { TOKEN_STORAGE_KEY } from "./api";
 
@@ -69,7 +67,6 @@ const NAV_ITEMS = [
   { to: "/nova-campanha", label: "Nova Campanha", img: ICON_NOVA_CAMPANHA },
   { to: "/historico", label: "Histórico", icon: <History className="w-4 h-4" /> },
   { to: "/extrator-maps", label: "Extrator Maps", img: ICON_GOOGLE_MAPS },
-  { to: "/api-google", label: "API Google", icon: <KeyRound className="w-4 h-4" /> },
 ];
 
 function SidebarContent({
@@ -189,7 +186,6 @@ function App() {
           <Route path="/nova-campanha" element={<NovaCampanha />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/extrator-maps" element={<ExtratorGoogle />} />
-          <Route path="/api-google" element={<ApiGoogle />} />
         </Routes>
       </main>
     </div>
