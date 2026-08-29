@@ -4,7 +4,7 @@
  */
 
 import { Router } from "express";
-import { buscarEmpresasSemSite } from "../services/overpassScraper.js";
+import { buscarEmpresasSemSite } from "../services/geoapifyScraper.js";
 import { prisma } from "../db.js";
 
 const router = Router();
@@ -20,11 +20,10 @@ function extrairNumero(raw?: string): string {
 
 // POST /api/extractor/search
 router.post("/search", async (req, res) => {
-  const { query, limit, modo, fonte } = req.body as {
+  const { query, limit, modo } = req.body as {
     query?: string;
     limit?: number;
     modo?: "leads" | "completo";
-    fonte?: "osm" | "geoapify";
   };
 
   if (!query || !query.trim()) {
@@ -37,8 +36,7 @@ router.post("/search", async (req, res) => {
     const resultados = await buscarEmpresasSemSite(
       query.trim(),
       limite,
-      modo === "completo" ? "completo" : "leads",
-      fonte === "geoapify" ? "geoapify" : "osm"
+      modo === "completo" ? "completo" : "leads"
     );
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {

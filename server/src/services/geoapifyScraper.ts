@@ -1,72 +1,106 @@
 /**
  * geoapifyScraper.ts
- * Extrator via Geoapify Places API — FREE TIER de 3.000 chamadas/dia POR CHAVE.
+ * Extrator de empresas locais — ÚNICA fonte: Geoapify Places API (FREE, sem cartão).
  *
- * Suporta ROTAÇÃO de chaves (GEOAPIFY_KEYS no .env, vírgula-separado) para
- * multiplicar a cota gratuita (ex.: 5 chaves = 15.000 chamadas/dia sem custo).
+ * Fluxo:
+ *   1. Nominatim geocodifica a região (ex: "São Paulo") -> bounding box (gratuito, sem chave).
+ *   2. Geoapify Places busca POIs pelo termo dentro da região (3.000 req/dia por projeto).
+ *   3. Filtra leads (com WhatsApp, sem site ou com Gmail) ou traz todos os dados.
  *
- * Em caso de 429/403 a chave é marcada como exaurida e a próxima da lista assume.
- * Retorna os mesmos campos do Overpass (phone, site, email, endereço, cidade, coords…),
- * para que o restante do pipeline (leads/completo, save, frontend) funcione igual.
- *
- * Observação: a fonte é OpenStreetMap por baixo, então e-mail/redes sociais/avaliações
- * continuam raros — mas o telefone/WhatsApp (o que importa pro disparo) vem bem.
+ * Requer GEOAPIFY_KEY no .env (uma chave de um projeto Geoapify).
+ * Observação: a fonte é OpenStreetMap por baixo, então e-mail/redes/avaliações são raros,
+ * mas telefone/WhatsApp (o que importa pro disparo) vêm bem. Dados: Powered by Geoapify.
  */
 
 import axios from "axios";
-import { geocodificar, parseQuery, filtrarPorModo, toWhatsappLink, Resultado } from "./overpassScraper.js";
 
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const GEOAPIFY_URL = "https://api.geoapify.com/v2/places";
 
-function getKeys(): string[] {
-  return (process.env.GEOAPIFY_KEYS || "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
+export interface Resultado {
+  nome: string;
+  telefone: string;
+  whatsapp: string;
+  email: string;
+  gmail: string;
+  endereco: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  cep: string;
+  categoria: string;
+  avaliacao: string;
+  qtd_avaliacoes: string;
+  facebook: string;
+  instagram: string;
+  linkedin: string;
+  tiktok: string;
+  twitter: string;
+  google_maps_url: string;
+  site: string;
+  lat: string;
+  lon: string;
 }
 
-let rotacao = 0;
-const chavesExauridas = new Set<number>();
+/** Normaliza telefone para link direto do WhatsApp (DDI 55 quando ausente). */
+export function toWhatsappLink(rawPhone?: string): string {
+  if (!rawPhone) return "";
+  let digits = String(rawPhone).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length <= 11 && !digits.startsWith("55")) digits = "55" + digits;
+  return `https://wa.me/${digits}`;
+}
 
-/**
- * Faz GET na Geoapify rotacionando chaves. Em 429/403 tenta a próxima chave disponível.
- * Se todas esgotarem, zera o cache de exauridas (a cota diária pode ter renovado).
- */
-async function geoapifyGet(params: Record<string, string>): Promise<any> {
-  const keys = getKeys();
-  if (keys.length === 0) {
-    throw new Error("Nenhuma GEOAPIFY_KEYS configurada no .env. Defina uma ou mais chaves (vírgula-separadas).");
+interface Area {
+  bbox?: [number, number, number, number]; // [south, west, north, east]
+  center?: { lat: number; lon: number };
+  cidade?: string;
+  estado?: string;
+}
+
+function parseQuery(query: string): { termo: string; local: string } {
+  const m = query.match(
+    /^(.*?)\s+(?:em|no|na|nos|nas|no bairro|em bairro|dentro do|dentro da)\s+(.+)$/i
+  );
+  if (m) return { termo: m[1].trim(), local: m[2].trim() };
+  const virgula = query.indexOf(",");
+  if (virgula !== -1) {
+    return { termo: query.slice(0, virgula).trim(), local: query.slice(virgula + 1).trim() };
   }
+  return { termo: query.trim(), local: "" };
+}
 
-  let ultimoErro: unknown;
-  let tentativas = 0;
-  while (tentativas < keys.length) {
-    const idx = rotacao % keys.length;
-    rotacao++;
-    tentativas++;
-    if (chavesExauridas.has(idx)) continue;
-
-    try {
-      const { data } = await axios.get(GEOAPIFY_URL, {
-        params: { ...params, apiKey: keys[idx] },
-        timeout: 20000,
-      });
-      chavesExauridas.delete(idx);
-      return data;
-    } catch (e: any) {
-      const status = e?.response?.status;
-      if (status === 429 || status === 403) {
-        chavesExauridas.add(idx);
-        ultimoErro = e;
-        continue; // tenta a próxima chave
+async function geocodificar(local: string): Promise<Area> {
+  try {
+    const { data } = await axios.get(NOMINATIM_URL, {
+      params: { format: "jsonv2", limit: 1, q: local, countrycodes: "br" },
+      headers: { "User-Agent": "zapizapi/1.0 (extrator geoapify)" },
+      timeout: 15000,
+    });
+    const item = Array.isArray(data) ? data[0] : null;
+    if (!item) return {};
+    const bb = item.boundingbox;
+    const addr = item.address || {};
+    const displayName = typeof item.display_name === "string" ? item.display_name : "";
+    const partes = displayName ? displayName.split(",").map((s: string) => s.trim()) : [];
+    const area: Area = {
+      cidade: addr.city || addr.town || addr.municipality || partes[0] || "",
+      estado: addr.state || addr.state_code || (partes.length >= 2 ? partes[partes.length - 2] : ""),
+    };
+    if (Array.isArray(bb) && bb.length === 4) {
+      const [south, north, west, east] = bb.map(Number);
+      if ([south, north, west, east].every((n) => Number.isFinite(n))) {
+        area.bbox = [south, west, north, east];
       }
-      throw e;
     }
+    if (!area.bbox && item.lat && item.lon) {
+      area.center = { lat: Number(item.lat), lon: Number(item.lon) };
+    }
+    return area;
+  } catch {
+    // ignora e retorna vazio
   }
-
-  // Todas esgotadas: limpa para não travar caso a cota tenha renovado.
-  if (chavesExauridas.size >= keys.length) chavesExauridas.clear();
-  throw ultimoErro ?? new Error("Geoapify: todas as chaves atingiram o limite diário gratuito.");
+  return {};
 }
 
 function mapFeature(f: any): Resultado | null {
@@ -108,11 +142,28 @@ function mapFeature(f: any): Resultado | null {
   };
 }
 
-export async function buscarEmpresasGeoapify(
+/**
+ * Aplica o filtro de modo (leads/completo).
+ * - completo: todas as empresas.
+ * - leads: só as contactáveis (com telefone/WhatsApp) E (sem site OU com Gmail).
+ */
+export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): Resultado[] {
+  if (modo === "completo") return todas;
+  const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
+  const comGmail = (e: Resultado) => e.email.toLowerCase().includes("gmail.com");
+  return todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
+}
+
+export async function buscarEmpresasSemSite(
   query: string,
   limit = 20,
   modo: "leads" | "completo" = "leads"
 ): Promise<Resultado[]> {
+  const apiKey = (process.env.GEOAPIFY_KEY || "").trim();
+  if (!apiKey) {
+    throw new Error("GEOAPIFY_KEY não configurada no .env. Crie uma chave em myprojects.geoapify.com e defina GEOAPIFY_KEY.");
+  }
+
   const { termo, local } = parseQuery(query);
   const area = await geocodificar(local || termo);
   if (!area.bbox && !area.center) {
@@ -121,7 +172,6 @@ export async function buscarEmpresasGeoapify(
     );
   }
 
-  // Geoapify aceita bbox (rect) ou círculo em torno do centro.
   let filter: string;
   if (area.bbox) {
     const [s, w, n, e] = area.bbox;
@@ -137,12 +187,9 @@ export async function buscarEmpresasGeoapify(
   // Geoapify pagina em lotes de até 100; repetimos até atingir o limite pedido.
   while (todas.length < limite) {
     const lote = Math.min(100, limite - todas.length);
-    const data = await geoapifyGet({
-      text: termo,
-      filter,
-      limit: String(lote),
-      offset: String(offset),
-      lang: "pt",
+    const { data } = await axios.get(GEOAPIFY_URL, {
+      params: { text: termo, filter, limit: lote, offset, lang: "pt", apiKey },
+      timeout: 20000,
     });
     const feats = Array.isArray(data?.features) ? data.features : [];
     if (feats.length === 0) break;

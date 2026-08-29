@@ -38,7 +38,7 @@ Copie `server/.env.example` para `server/.env` e preencha:
 - `WAPI_API_KEY` — Chave da CONTA w-api.app (diferente do token); usada para criar/auto-provisionar a instância via `POST /v1/client/create-instance`
 - `WAPI_BASE_URL` — padrão `https://api.w-api.app` (definido em `wapiClient.ts` e no `.env.example`)
 - `DATABASE_URL` — SQLite local: `file:./dev.db`; em deploy Docker: `file:/app/data/dev.db`
-- `RAPIDAPI_KEY` — fallback para o extrator do Google Maps (só quando nenhuma chave estiver cadastrada em "API Google")
+- `GEOAPIFY_KEY` — chave do Geoapify (única fonte do extrator); free tier 3.000 req/dia por projeto
 
 Nunca commite o `.env` (está no `.gitignore`).
 
@@ -54,7 +54,7 @@ Nunca commite o `.env` (está no `.gitignore`).
 ## Convenções
 
 - Código e comentários em português.
-- Toda a lógica de domínio fica em `server/src/services/` (ex.: `messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`, `overpassScraper.ts`, `scheduler.ts`, `auth.ts`, `timezone.ts`).
+- Toda a lógica de domínio fica em `server/src/services/` (ex.: `messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`, `geoapifyScraper.ts`, `scheduler.ts`, `auth.ts`, `timezone.ts`).
 - **Imports do server usam extensão `.js`** mesmo em arquivos `.ts` (module `NodeNext`/`ESM`). Ao editar imports, mantenha o `.js` — senão quebra em runtime.
 - **O server roda `.ts` direto via `tsx`** (scripts `dev`/`start`). O deploy não usa o build compilado do server (o script `build` roda `tsc`, mas o Docker sobe via `tsx`); não dependa de saída compilada.
 - Spintax: `{op1|op2|op3}` é resolvido DEPOIS das variáveis `{{var}}`.

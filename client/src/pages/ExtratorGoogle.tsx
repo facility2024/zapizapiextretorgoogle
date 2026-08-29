@@ -71,7 +71,6 @@ export default function ExtratorGoogle() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
   const [modo, setModo] = useState<"leads" | "completo">("leads");
-  const [fonte, setFonte] = useState<"osm" | "geoapify">("osm");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
@@ -154,7 +153,7 @@ export default function ExtratorGoogle() {
     setStatusMsg("Iniciando extração…");
     setResultados([]);
     setProgresso(null);
-    socket.emit("extractor:search", { query: query.trim(), limit, modo, fonte });
+    socket.emit("extractor:search", { query: query.trim(), limit, modo });
   }
 
   function exportarCSV() {
@@ -258,7 +257,7 @@ export default function ExtratorGoogle() {
       <div>
         <h1 className="text-2xl font-bold">Extrator do Google Maps</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Busca empresas locais (gratuito): OpenStreetMap ou Geoapify com rotação de chaves — leads sem site/Gmail ou todos os dados da categoria/região
+          Busca empresas locais via Geoapify (gratuito, 3.000 req/dia): leads sem site/Gmail ou todos os dados da categoria/região
         </p>
       </div>
 
@@ -318,35 +317,10 @@ export default function ExtratorGoogle() {
               Todos os dados (completo)
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <span className="text-xs text-gray-500">Fonte:</span>
-            <button
-              onClick={() => setFonte("osm")}
-              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                fonte === "osm"
-                  ? "bg-accent/20 text-accent-light border-accent/40"
-                  : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
-              }`}
-            >
-              OpenStreetMap (sem chave)
-            </button>
-            <button
-              onClick={() => setFonte("geoapify")}
-              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                fonte === "geoapify"
-                  ? "bg-accent/20 text-accent-light border-accent/40"
-                  : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
-              }`}
-            >
-              Geoapify (GEOAPIFY_KEYS)
-            </button>
-          </div>
           <p className="text-xs text-gray-500 mt-3">
             <span className="text-accent-light">Leads</span>: só empresas com WhatsApp (sem site ou com Gmail) — linhas sem telefone são ignoradas.{" "}
             <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
-            endereço, bairro, cidade, estado, CEP, site e redes (via OpenStreetMap/Geoapify, gratuito).
-            O Geoapify usa rotação de chaves (GEOAPIFY_KEYS no .env, vírgula-separadas) para multiplicar a cota diária gratuita.
-            Atenção: a cota de 3.000 req/dia é POR PROJETO — use uma chave de cada projeto Geoapify diferente para somar as cotas. Dados: Powered by Geoapify.
+            endereço, bairro, cidade, estado, CEP, site e redes (via Geoapify, gratuito, Powered by Geoapify).
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".
           </p>
       </div>
