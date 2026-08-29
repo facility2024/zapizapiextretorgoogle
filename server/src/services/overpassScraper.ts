@@ -11,6 +11,7 @@
  */
 
 import axios from "axios";
+import { buscarEmpresasGeoapify } from "./geoapifyScraper.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const OVERPASS_URLS = [
@@ -104,7 +105,7 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseQuery(query: string): { termo: string; local: string } {
+export function parseQuery(query: string): { termo: string; local: string } {
   const m = query.match(
     /^(.*?)\s+(?:em|no|na|nos|nas|no bairro|em bairro|dentro do|dentro da)\s+(.+)$/i
   );
@@ -117,7 +118,7 @@ function parseQuery(query: string): { termo: string; local: string } {
   return { termo: query.trim(), local: "" };
 }
 
-async function geocodificar(local: string): Promise<Area> {
+export async function geocodificar(local: string): Promise<Area> {
   try {
     const { data } = await axios.get(NOMINATIM_URL, {
       params: { format: "jsonv2", limit: 1, q: local, countrycodes: "br" },
@@ -261,16 +262,31 @@ function mapElement(el: any): Resultado | null {
 }
 
 /**
- * Busca empresas locais via OpenStreetMap.
+ * Aplica o filtro de modo (leads/completo) a uma lista de resultados.
+ * - completo: todas as empresas.
+ * - leads: só as contactáveis (com telefone/WhatsApp) E (sem site OU com Gmail).
+ */
+export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): Resultado[] {
+  if (modo === "completo") return todas;
+  const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
+  const comGmail = (e: Resultado) => e.email.toLowerCase().includes("gmail.com");
+  return todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
+}
+
+/**
+ * Busca empresas locais via OpenStreetMap (ou Geoapify quando fonte="geoapify").
  * @param modo "leads"   → apenas empresas SEM site ou com e-mail Gmail (para disparo). Default.
  *             "completo" → TODAS as empresas da categoria/região, com todos os dados disponíveis.
+ * @param fonte "osm" (padrão, sem chave) ou "geoapify" (requer GEOAPIFY_KEYS no .env, com rotação).
  * Retorna no máximo `limit` resultados.
  */
 export async function buscarEmpresasSemSite(
   query: string,
   limit = 20,
-  modo: "leads" | "completo" = "leads"
+  modo: "leads" | "completo" = "leads",
+  fonte: "osm" | "geoapify" = "osm"
 ): Promise<Resultado[]> {
+  if (fonte === "geoapify") return buscarEmpresasGeoapify(query, limit, modo);
   const { termo, local } = parseQuery(query);
   const area = await geocodificar(local || termo);
   if (!area.bbox && !area.center) {
@@ -289,17 +305,7 @@ export async function buscarEmpresasSemSite(
     if (!r.estado) r.estado = area.estado || "";
   }
 
-  let base: Resultado[];
-  if (modo === "completo") {
-    // Traz TUDO: com e sem site, com todos os campos disponíveis.
-    base = todas;
-  } else {
-    // Leads: SÓ o que é contactável (tem telefone/WhatsApp) E (sem site OU com Gmail).
-    // Não retorna linhas vazias — não servem como lead de disparo.
-    const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
-    const comGmail = (e: Resultado) => e.email.toLowerCase().includes("gmail.com");
-    base = todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
-  }
+  const base = filtrarPorModo(todas, modo);
 
   // Dedupe por nome+telefone
   const vistos = new Set<string>();

@@ -20,7 +20,12 @@ function extrairNumero(raw?: string): string {
 
 // POST /api/extractor/search
 router.post("/search", async (req, res) => {
-  const { query, limit, modo } = req.body as { query?: string; limit?: number; modo?: "leads" | "completo" };
+  const { query, limit, modo, fonte } = req.body as {
+    query?: string;
+    limit?: number;
+    modo?: "leads" | "completo";
+    fonte?: "osm" | "geoapify";
+  };
 
   if (!query || !query.trim()) {
     res.status(400).json({ error: "query é obrigatório" });
@@ -29,10 +34,15 @@ router.post("/search", async (req, res) => {
 
   try {
     const limite = Math.min(Number(limit) || 20, 5000);
-    const resultados = await buscarEmpresasSemSite(query.trim(), limite, modo === "completo" ? "completo" : "leads");
+    const resultados = await buscarEmpresasSemSite(
+      query.trim(),
+      limite,
+      modo === "completo" ? "completo" : "leads",
+      fonte === "geoapify" ? "geoapify" : "osm"
+    );
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {
-    res.status(502).json({ error: err?.message || "Erro ao consultar o OpenStreetMap" });
+    res.status(502).json({ error: err?.message || "Erro ao consultar a fonte de dados" });
   }
 });
 
