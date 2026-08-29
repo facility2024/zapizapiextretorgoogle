@@ -13,6 +13,7 @@
  */
 
 import axios from "axios";
+import { getGeoapifyKeys } from "./configStore.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const GEOAPIFY_URL = "https://api.geoapify.com/v2/places";
@@ -186,32 +187,57 @@ function mapFeature(f: any): Resultado | null {
 /**
  * Aplica o filtro de modo (leads/completo).
  * - completo: todas as empresas.
- * - leads: só as contactáveis (com telefone/WhatsApp) E (sem site OU com Gmail).
+ * - leads: só as contactáveis (com telefone/WhatsApp) — o que importa para o disparo.
  */
 export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): Resultado[] {
   if (modo === "completo") return todas;
-  const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
-  const comGmail = (e: Resultado) => e.email.toLowerCase().includes("gmail.com");
-  return todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
+  return todas.filter((e) => e.telefone.trim() !== "");
 }
 
-/** Busca paginada usando uma string de categorias fixa. */
+/**
+ * Busca paginada usando uma string de categorias fixa, com rotação de chaves.
+ * Em 429/403 marca a chave como exaurida e tenta a próxima; se todas esgotarem, lança erro.
+ */
 async function buscarPaginado(
   categorias: string,
   filter: string,
   limite: number,
   area: Area,
-  apiKey: string
+  keys: string[],
+  pegarChave: () => { key: string; idx: number } | null,
+  exauridas: Set<number>
 ): Promise<Resultado[]> {
   const todas: Resultado[] = [];
   let offset = 0;
   while (todas.length < limite) {
     const lote = Math.min(100, limite - todas.length);
-    const { data } = await axios.get(GEOAPIFY_URL, {
-      params: { categories: categorias, filter, limit: lote, offset, lang: "pt", apiKey },
-      timeout: 20000,
-    });
-    const feats = Array.isArray(data?.features) ? data.features : [];
+
+    // Faz a requisição com retry trocando de chave em caso de limite (429/403).
+    let feats: any[] = [];
+    let tentativas = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const k = pegarChave();
+      if (!k) throw new Error("Todas as chaves Geoapify atingiram o limite diário gratuito.");
+      try {
+        const { data } = await axios.get(GEOAPIFY_URL, {
+          params: { categories: categorias, filter, limit: lote, offset, lang: "pt", apiKey: k.key },
+          timeout: 20000,
+        });
+        feats = Array.isArray(data?.features) ? data.features : [];
+        break;
+      } catch (e: any) {
+        const st = e?.response?.status;
+        if (st === 429 || st === 403) {
+          exauridas.add(k.idx);
+          tentativas++;
+          if (tentativas > keys.length * 3) throw new Error("Todas as chaves Geoapify atingiram o limite diário gratuito.");
+          continue;
+        }
+        throw e; // 400 (categoria inválida) ou outro erro — propaga
+      }
+    }
+
     if (feats.length === 0) break;
     for (const f of feats) {
       const r = mapFeature(f);
@@ -233,9 +259,11 @@ export async function buscarEmpresasSemSite(
   limit = 20,
   modo: "leads" | "completo" = "leads"
 ): Promise<Resultado[]> {
-  const apiKey = (process.env.GEOAPIFY_KEY || "").trim();
-  if (!apiKey) {
-    throw new Error("GEOAPIFY_KEY não configurada no .env. Crie uma chave em myprojects.geoapify.com e defina GEOAPIFY_KEY.");
+  const keys = getGeoapifyKeys();
+  if (keys.length === 0) {
+    throw new Error(
+      "Nenhuma chave Geoapify configurada. Defina GEOAPIFY_KEY no .env ou adicione em Configurações (menu do app)."
+    );
   }
 
   const { termo, local } = parseQuery(query);
@@ -256,11 +284,23 @@ export async function buscarEmpresasSemSite(
   const limite = Math.min(Math.max(limit, 1), 5000);
   const candidatos = mapearCategoria(termo);
 
+  // Rotação de chaves: round-robin, pulando as exauridas (429/403).
+  let rot = 0;
+  const exauridas = new Set<number>();
+  const pegarChave = (): { key: string; idx: number } | null => {
+    for (let i = 0; i < keys.length; i++) {
+      const idx = rot % keys.length;
+      rot++;
+      if (!exauridas.has(idx)) return { key: keys[idx], idx };
+    }
+    return null;
+  };
+
   // Tenta a categoria específica; se a Geoapify rejeitar (400), cai no grupo e depois no geral.
   let ultimoErro: unknown;
   for (const cats of candidatos) {
     try {
-      const todas = await buscarPaginado(cats, filter, limite, area, apiKey);
+      const todas = await buscarPaginado(cats, filter, limite, area, keys, pegarChave, exauridas);
       const unicas = filtrarPorModo(todas, modo);
       return unicas.slice(0, Math.max(1, limite));
     } catch (e: any) {

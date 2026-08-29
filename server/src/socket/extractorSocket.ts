@@ -33,7 +33,7 @@ export function registerExtractorSocket(socket: Socket) {
 
         const empresas = await buscarEmpresasSemSite(query, limite, modo);
 
-        const rotulo = modo === "completo" ? "todas as empresas (dados completos)" : "empresas (sem site ou com Gmail)";
+        const rotulo = modo === "completo" ? "todas as empresas (dados completos)" : "empresas (com WhatsApp)";
         socket.emit("extractor:status", {
           stage: "details",
           message: `${empresas.length} ${rotulo} encontradas`,

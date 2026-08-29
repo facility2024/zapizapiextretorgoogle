@@ -15,6 +15,7 @@ import wapiRoutes from "./routes/wapi.js";
 import uploadRoutes from "./routes/upload.js";
 import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
+import configRoutes from "./routes/config.js";
 import authRoutes from "./routes/auth.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { verificarToken } from "./services/auth.js";
@@ -60,6 +61,7 @@ app.use("/api/wapi", wapiRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/extractor", extractorRoutes);
+app.use("/api/config", configRoutes);
 app.use("/api/auth", authRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback

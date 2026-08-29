@@ -116,7 +116,7 @@ export default function ExtratorGoogle() {
         setErro(
           modo === "completo"
             ? "Nenhuma empresa encontrada para este termo."
-            : "Nenhuma empresa (sem site ou com Gmail) encontrada para este termo."
+            : "Nenhuma empresa (com WhatsApp) encontrada para este termo."
         );
       }
     };
@@ -304,7 +304,7 @@ export default function ExtratorGoogle() {
                   : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
               }`}
             >
-              Leads (sem site / Gmail)
+              Leads (com WhatsApp)
             </button>
             <button
               onClick={() => setModo("completo")}
@@ -318,7 +318,7 @@ export default function ExtratorGoogle() {
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            <span className="text-accent-light">Leads</span>: só empresas com WhatsApp (sem site ou com Gmail) — linhas sem telefone são ignoradas.{" "}
+            <span className="text-accent-light">Leads</span>: só empresas com WhatsApp/telefone (contactáveis para disparo) — linhas sem telefone são ignoradas.{" "}
             <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
             endereço, bairro, cidade, estado, CEP, site e redes (via Geoapify, gratuito, Powered by Geoapify).
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".
