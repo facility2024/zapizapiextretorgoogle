@@ -172,8 +172,8 @@ function buildQuery(
       (tag) => `  nwr["${tag}"~"${regex}",i]${areaClause};`
     ).join("\n");
   }
-  // Limita a quantidade de elementos retornados para evitar timeout em cidades grandes.
-  const cap = Math.min(Math.max(limite, 1), 500);
+  // Limita a quantidade de elementos retornados (teto alto p/ respeitar o limite pedido).
+  const cap = Math.min(Math.max(limite, 1), 5000);
   return `[out:json][timeout:25];
 (
 ${corpo}
@@ -291,15 +291,14 @@ export async function buscarEmpresasSemSite(
 
   let base: Resultado[];
   if (modo === "completo") {
-    // Traz TUDO: com e sem site, com todos os campos preenchidos.
+    // Traz TUDO: com e sem site, com todos os campos disponíveis.
     base = todas;
   } else {
-    // Leads: empresas SEM site OU que possuem e-mail Gmail (úteis para contato).
-    const semSite = todas.filter((e) => !e.site || e.site === "(sem site)");
-    const comGmail = todas.filter((e) => e.email.toLowerCase().includes("gmail.com"));
-    base = [...semSite, ...comGmail];
-    // Se não houver nenhuma das categorias, retorna o que vier (evita lista vazia).
-    if (base.length === 0) base = todas;
+    // Leads: SÓ o que é contactável (tem telefone/WhatsApp) E (sem site OU com Gmail).
+    // Não retorna linhas vazias — não servem como lead de disparo.
+    const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
+    const comGmail = (e: Resultado) => e.email.toLowerCase().includes("gmail.com");
+    base = todas.filter((e) => e.telefone.trim() !== "" && (semSite(e) || comGmail(e)));
   }
 
   // Dedupe por nome+telefone

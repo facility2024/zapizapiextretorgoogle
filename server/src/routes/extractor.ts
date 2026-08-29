@@ -28,7 +28,7 @@ router.post("/search", async (req, res) => {
   }
 
   try {
-    const limite = Math.min(Number(limit) || 20, 200);
+    const limite = Math.min(Number(limit) || 20, 5000);
     const resultados = await buscarEmpresasSemSite(query.trim(), limite, modo === "completo" ? "completo" : "leads");
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {

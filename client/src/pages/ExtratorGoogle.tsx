@@ -277,12 +277,12 @@ export default function ExtratorGoogle() {
             placeholder='Ex: "Loja de roupas, São Paulo" ou "restaurantes em Bairro Centro, São Paulo"'
             className="flex-1 bg-bg-primary border border-gray-700 rounded-lg px-4 py-3 text-sm focus:border-accent focus:outline-none"
           />
-          <input
+           <input
             type="number"
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
             min={1}
-            max={100}
+            max={5000}
             className="w-24 bg-bg-primary border border-gray-700 rounded-lg px-3 py-3 text-sm focus:border-accent focus:outline-none"
           />
           <button
@@ -318,7 +318,7 @@ export default function ExtratorGoogle() {
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            <span className="text-accent-light">Leads</span>: empresas sem site ou com Gmail (para disparo).{" "}
+            <span className="text-accent-light">Leads</span>: só empresas com WhatsApp (sem site ou com Gmail) — linhas sem telefone são ignoradas.{" "}
             <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
             endereço, bairro, cidade, estado, CEP, site e redes (via OpenStreetMap, gratuito).
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".

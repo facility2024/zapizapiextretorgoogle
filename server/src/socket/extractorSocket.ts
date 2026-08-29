@@ -26,7 +26,7 @@ export function registerExtractorSocket(socket: Socket) {
 
     running = true;
     try {
-      const limite = Math.min(Number(payload.limit) || 20, 200);
+      const limite = Math.min(Number(payload.limit) || 20, 5000);
       socket.emit("extractor:status", { stage: "searching", message: "Buscando empresas no OpenStreetMap…" });
 
       const empresas = await buscarEmpresasSemSite(query, limite, modo);
