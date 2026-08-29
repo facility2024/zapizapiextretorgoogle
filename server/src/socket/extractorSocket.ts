@@ -44,6 +44,8 @@ export function registerExtractorSocket(socket: Socket) {
         for (const b of empresas) {
           socket.emit("extractor:result", b);
           enviados++;
+          // Progresso determinado (resultados recebidos / limite solicitado).
+          socket.emit("extractor:progress", { done: enviados, total: limite });
         }
 
         socket.emit("extractor:done", { total: enviados });

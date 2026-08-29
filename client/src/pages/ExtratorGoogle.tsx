@@ -326,16 +326,30 @@ export default function ExtratorGoogle() {
       </div>
 
       {loading && (
-        <div className="neon-card rounded-xl p-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-sm text-gray-300">
-            <Loader2 className="w-4 h-4 animate-spin text-accent" />
-            <span>{statusMsg || "Processando…"}</span>
+        <div className="neon-card rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-sm text-gray-300">
+              <Loader2 className="w-4 h-4 animate-spin text-accent" />
+              <span>{statusMsg || "Processando…"}</span>
+            </div>
+            {progresso && progresso.total > 0 && (
+              <span className="text-xs text-gray-500 font-display tabular-nums">
+                {progresso.done}/{progresso.total}
+              </span>
+            )}
           </div>
-          {progresso && (
-            <span className="text-xs text-gray-500 font-display tabular-nums">
-              {progresso.done}/{progresso.total}
-            </span>
-          )}
+          <div className="progress-track">
+            {progresso && progresso.total > 0 ? (
+              <div
+                className="h-full bg-accent transition-all duration-300"
+                style={{
+                  width: `${Math.min(100, Math.round((progresso.done / progresso.total) * 100))}%`,
+                }}
+              />
+            ) : (
+              <div className="progress-indeterminate" />
+            )}
+          </div>
         </div>
       )}
 

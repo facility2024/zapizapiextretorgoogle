@@ -141,6 +141,28 @@ body {
   background-repeat: repeat;
 }
 
+/* ============ BARRA DE PROGRESSO (extrator) ============ */
+@keyframes progress-indeterminate {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+.progress-track {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  background: #0e0b14;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.progress-indeterminate {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #a855f7, transparent);
+  animation: progress-indeterminate 1.2s ease-in-out infinite;
+}
+
 /* ============ RESPEITAR PREFERS-REDUCED-MOTION ============ */
 @media (prefers-reduced-motion: reduce) {
   .neon-card::before,
@@ -148,7 +170,8 @@ body {
   .logo-pulse,
   .conn-dot--online,
   .conn-dot--offline,
-  .animate-glow-pulse {
+  .animate-glow-pulse,
+  .progress-indeterminate {
     animation: none !important;
   }
   .neon-card:hover {
