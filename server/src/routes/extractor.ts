@@ -23,7 +23,7 @@ router.post("/search", async (req, res) => {
   const { query, limit, modo } = req.body as {
     query?: string;
     limit?: number;
-    modo?: "leads" | "completo";
+    modo?: "leads" | "sem_site_whatsapp" | "completo";
   };
 
   if (!query || !query.trim()) {
@@ -33,11 +33,9 @@ router.post("/search", async (req, res) => {
 
   try {
     const limite = Math.min(Number(limit) || 20, 5000);
-    const resultados = await buscarEmpresasSemSite(
-      query.trim(),
-      limite,
-      modo === "completo" ? "completo" : "leads"
-    );
+    const modoNorm: "leads" | "sem_site_whatsapp" | "completo" =
+      modo === "completo" ? "completo" : modo === "sem_site_whatsapp" ? "sem_site_whatsapp" : "leads";
+    const resultados = await buscarEmpresasSemSite(query.trim(), limite, modoNorm);
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {
     res.status(502).json({ error: err?.message || "Erro ao consultar a fonte de dados" });

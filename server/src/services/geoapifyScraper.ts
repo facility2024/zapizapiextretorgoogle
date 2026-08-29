@@ -185,15 +185,22 @@ function mapFeature(f: any): Resultado | null {
 }
 
 /**
- * Aplica o filtro de modo (leads/completo).
+ * Aplica o filtro de modo.
  * - completo: todas as empresas da categoria/região.
- * - leads: só empresas SEM site (target de disparo/CRM) — traz os dados completos
- *          (WhatsApp, e-mail, etc.). Use os filtros "Com WhatsApp"/"Com E-mail" da tela
- *          para refinar só aos contactáveis.
+ * - leads: só empresas SEM site (target de disparo/CRM) — traz os dados completos.
+ * - sem_site_whatsapp: empresas SEM site E com telefone/WhatsApp (contactáveis p/ disparo).
  */
-export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): Resultado[] {
+export function filtrarPorModo(
+  todas: Resultado[],
+  modo: "leads" | "sem_site_whatsapp" | "completo"
+): Resultado[] {
   if (modo === "completo") return todas;
-  return todas.filter((e) => !e.site || e.site === "(sem site)");
+  const semSite = (e: Resultado) => !e.site || e.site === "(sem site)";
+  if (modo === "sem_site_whatsapp") {
+    return todas.filter((e) => semSite(e) && e.telefone.trim() !== "");
+  }
+  // leads (padrão): só sem site
+  return todas.filter(semSite);
 }
 
 /**
@@ -259,7 +266,7 @@ async function buscarPaginado(
 export async function buscarEmpresasSemSite(
   query: string,
   limit = 20,
-  modo: "leads" | "completo" = "leads"
+  modo: "leads" | "sem_site_whatsapp" | "completo" = "leads"
 ): Promise<Resultado[]> {
   const keys = getGeoapifyKeys();
   if (keys.length === 0) {

@@ -70,7 +70,7 @@ function renderCelula(r: Resultado, k: string) {
 export default function ExtratorGoogle() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
-  const [modo, setModo] = useState<"leads" | "completo">("leads");
+  const [modo, setModo] = useState<"leads" | "sem_site_whatsapp" | "completo">("leads");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
@@ -307,6 +307,16 @@ export default function ExtratorGoogle() {
               Leads (sem site)
             </button>
             <button
+              onClick={() => setModo("sem_site_whatsapp")}
+              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                modo === "sem_site_whatsapp"
+                  ? "bg-accent/20 text-accent-light border-accent/40"
+                  : "bg-bg-primary text-gray-400 border-gray-700 hover:border-gray-500"
+              }`}
+            >
+              Sem site + WhatsApp
+            </button>
+            <button
               onClick={() => setModo("completo")}
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                 modo === "completo"
@@ -318,7 +328,9 @@ export default function ExtratorGoogle() {
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            <span className="text-accent-light">Leads</span>: só empresas SEM site (target de disparo/CRM) — traz os dados completos (WhatsApp, e-mail quando existirem). Use os filtros "Com WhatsApp"/"Com E-mail" da tela para ver só as contactáveis. Em grandes cidades (ex.: SP) lojas costumam já ter site, então pode vir vazio; tente cidades menores ou categorias de serviço.{" "}
+            <span className="text-accent-light">Leads</span>: só empresas SEM site (target de disparo/CRM) — traz os dados completos (WhatsApp, e-mail quando existirem).{" "}
+            <span className="text-accent-light">Sem site + WhatsApp</span>: idêntico ao Leads, mas só as que TÊM telefone/WhatsApp (prontas pra disparo).{" "}
+            <span className="text-accent-light">Completo</span>: toda a categoria da região, com ou sem site. Em grandes cidades (ex.: SP) lojas costumam já ter site, então o Leads pode vir vazio; tente cidades menores ou categorias de serviço.{" "}
             <span className="text-accent-light">Todos os dados</span>: toda a categoria da região, com nome, telefone,
             endereço, bairro, cidade, estado, CEP, site e redes (via Geoapify, gratuito, Powered by Geoapify).
             Informe categoria + local (cidade ou bairro), ex: "restaurantes em Bairro Centro, São Paulo".

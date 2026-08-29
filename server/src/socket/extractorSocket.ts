@@ -13,7 +13,7 @@ export function registerExtractorSocket(socket: Socket) {
 
   socket.on(
     "extractor:search",
-    async (payload: { query?: string; limit?: number; modo?: "leads" | "completo" }) => {
+    async (payload: { query?: string; limit?: number; modo?: "leads" | "sem_site_whatsapp" | "completo" }) => {
       const query = payload?.query?.trim();
       if (!query) {
         socket.emit("extractor:error", { message: "query é obrigatório" });
@@ -24,7 +24,12 @@ export function registerExtractorSocket(socket: Socket) {
         return;
       }
 
-      const modo = payload?.modo === "completo" ? "completo" : "leads";
+      const modo: "leads" | "sem_site_whatsapp" | "completo" =
+        payload?.modo === "completo"
+          ? "completo"
+          : payload?.modo === "sem_site_whatsapp"
+          ? "sem_site_whatsapp"
+          : "leads";
 
       running = true;
       try {
@@ -33,7 +38,12 @@ export function registerExtractorSocket(socket: Socket) {
 
         const empresas = await buscarEmpresasSemSite(query, limite, modo);
 
-        const rotulo = modo === "completo" ? "todas as empresas (dados completos)" : "empresas (sem site)";
+        const rotulo =
+          modo === "completo"
+            ? "todas as empresas (dados completos)"
+            : modo === "sem_site_whatsapp"
+            ? "empresas (sem site + WhatsApp)"
+            : "empresas (sem site)";
         socket.emit("extractor:status", {
           stage: "details",
           message: `${empresas.length} ${rotulo} encontradas`,
