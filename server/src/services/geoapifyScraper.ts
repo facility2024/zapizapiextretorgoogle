@@ -186,12 +186,14 @@ function mapFeature(f: any): Resultado | null {
 
 /**
  * Aplica o filtro de modo (leads/completo).
- * - completo: todas as empresas.
- * - leads: só as contactáveis (com telefone/WhatsApp) — o que importa para o disparo.
+ * - completo: todas as empresas da categoria/região.
+ * - leads: só empresas SEM site (target de disparo/CRM) — traz os dados completos
+ *          (WhatsApp, e-mail, etc.). Use os filtros "Com WhatsApp"/"Com E-mail" da tela
+ *          para refinar só aos contactáveis.
  */
 export function filtrarPorModo(todas: Resultado[], modo: "leads" | "completo"): Resultado[] {
   if (modo === "completo") return todas;
-  return todas.filter((e) => e.telefone.trim() !== "");
+  return todas.filter((e) => !e.site || e.site === "(sem site)");
 }
 
 /**
