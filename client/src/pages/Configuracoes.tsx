@@ -66,7 +66,8 @@ export default function Configuracoes() {
           />
           <p className="text-[11px] text-gray-500 mt-1">
             Crie chaves grátis em https://myprojects.geoapify.com/ (3.000 req/dia por projeto). O extrator
-            rotaciona entre as chaves para multiplicar a cota. As chaves ficam salvas no servidor (server/data/config.json).
+            rotaciona entre as chaves para multiplicar a cota. As chaves ficam salvas no <span className="text-gray-400">banco de dados</span> e
+            persistem nas atualizações do sistema (não precisam ser reinseridas).
           </p>
         </div>
 

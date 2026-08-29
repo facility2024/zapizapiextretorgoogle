@@ -1,41 +1,20 @@
 /**
  * configStore.ts
- * Armazena configurações do app em arquivo JSON (server/data/config.json),
- * para que o usuário possa alterar chaves pelo menu sem editar o .env ou reiniciar o server.
- * As chaves Geoapify também podem vir do .env (GEOAPIFY_KEY) como fallback.
+ * Armazena as chaves do Geoapify no BANCO DE DADOS (modelo ApiKey), que persiste
+ * entre atualizações/redeploys (diferente de arquivos em disco).
+ * O .env (GEOAPIFY_KEY) continua como fallback caso o banco esteja vazio.
  */
 
-import fs from "fs";
-import path from "path";
+import { prisma } from "../db.js";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const CONFIG_FILE = path.join(DATA_DIR, "config.json");
-
-interface AppConfig {
-  geoapifyKeys?: string[];
-}
-
-function ler(): AppConfig {
+/** Retorna as chaves Geoapify ativas do banco; cai no .env se não houver nenhuma. */
+export async function getGeoapifyKeys(): Promise<string[]> {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8")) as AppConfig;
-    }
+    const rows = await prisma.apiKey.findMany({ where: { ativo: true } });
+    const keys = rows.map((r) => r.key.trim()).filter(Boolean);
+    if (keys.length) return keys;
   } catch {
-    // ignora arquivo corrompido
-  }
-  return {};
-}
-
-function gravar(cfg: AppConfig): void {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
-}
-
-/** Retorna as chaves Geoapify (do menu/arquivo, ou do .env como fallback). */
-export function getGeoapifyKeys(): string[] {
-  const cfg = ler();
-  if (cfg.geoapifyKeys && cfg.geoapifyKeys.length) {
-    return cfg.geoapifyKeys.map((k) => k.trim()).filter(Boolean);
+    // ignora (ex.: tabela indisponível) e usa o fallback do .env
   }
   return (process.env.GEOAPIFY_KEY || "")
     .split(",")
@@ -43,14 +22,16 @@ export function getGeoapifyKeys(): string[] {
     .filter(Boolean);
 }
 
-/** Salva as chaves Geoapify recebidas como texto (quebras de linha ou vírgulas separam as chaves). */
-export function setGeoapifyKeys(texto: string): string[] {
-  const chaves = texto
-    .split(/[\n,;]+/)
-    .map((k) => k.trim())
-    .filter(Boolean);
-  const cfg = ler();
-  cfg.geoapifyKeys = chaves;
-  gravar(cfg);
+/** Substitui todas as chaves Geoapify salvas pelo texto informado (linhas ou vírgulas). */
+export async function setGeoapifyKeys(texto: string): Promise<string[]> {
+  const chaves = [...new Set(texto.split(/[\n,;]+/).map((k) => k.trim()).filter(Boolean))];
+  try {
+    await prisma.apiKey.deleteMany({});
+    if (chaves.length) {
+      await prisma.apiKey.createMany({ data: chaves.map((k) => ({ key: k, ativo: true })) });
+    }
+  } catch {
+    // se falhar (ex.: sem DB), ignora — o GET ainda lê do .env
+  }
   return chaves;
 }
