@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Users, Download, Search, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Users, Download, Search, Loader2, Link2 } from "lucide-react";
 import api from "../api";
 
 interface Participante {
@@ -8,18 +8,65 @@ interface Participante {
   admin: string;
   nome: string | null;
 }
+interface GrupoOpt { id: string; subject?: string; name?: string; size?: number; }
+
+function extrairIdDeLink(input: string): string | null {
+  const s = input.trim();
+  // já é ID direto
+  if (s.includes("@g.us")) return s;
+  // link convite https://chat.whatsapp.com/ABC123 -> não dá pra converter sem API extra, avisa
+  if (s.includes("chat.whatsapp.com/")) return null;
+  // só números? tenta assumir que é ID sem @g.us
+  if (/^\d{10,}@g\.us$/.test(s)) return s;
+  if (/^\d{10,}$/.test(s) && s.length >= 15) return `${s}@g.us`;
+  return null;
+}
 
 export default function Grupos() {
   const [groupId, setGroupId] = useState("");
+  const [grupos, setGrupos] = useState<GrupoOpt[]>([]);
+  const [loadingGrupos, setLoadingGrupos] = useState(false);
   const [dados, setDados] = useState<Participante[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    async function carregar() {
+      setLoadingGrupos(true);
+      try {
+        const { data } = await api.get("/grupos", { timeout: 40000 });
+        const lista: GrupoOpt[] = data.grupos || [];
+        // normaliza id/subject
+        const norm = lista.map((g: any) => ({
+          id: g.id || g.groupId || g.jid || "",
+          subject: g.subject || g.name || g.groupName || g.id,
+          size: g.size || g.participantsCount,
+        })).filter(g => g.id.includes("@g.us"));
+        setGrupos(norm);
+      } catch {
+        // sem lista, deixa input manual
+      } finally { setLoadingGrupos(false); }
+    }
+    carregar();
+  }, []);
+
   async function buscar() {
-    if (!groupId.trim()) { setError("Informe o ID do grupo (ex: 1203...@g.us)"); return; }
+    let id = groupId.trim();
+    // aceita link/nome colado e tenta converter
+    const conv = extrairIdDeLink(id);
+    if (id.includes("chat.whatsapp.com")) {
+      setError("Link de convite (chat.whatsapp.com) não é o ID do grupo. Selecione o grupo na lista acima ou use o ID @g.us. No WhatsApp: abra o grupo > Dados do grupo > o ID aparece ao convidar (ou use a lista).");
+      return;
+    }
+    if (!id) { setError("Selecione um grupo na lista ou cole o ID (ex: 12012345666643082066@g.us)"); return; }
+    if (!id.includes("@g.us")) {
+      // se digitou só nome, avisa
+      if (!/^\d/.test(id)) { setError("Digite o ID do grupo, não o nome. Escolha na lista acima ou cole o ID @g.us"); return; }
+      if (conv) id = conv;
+    }
     setLoading(true); setError(null); setDados([]);
     try {
-      const { data } = await api.get("/grupos/participantes", { params: { groupId: groupId.trim() }, timeout: 60000 });
+      const { data } = await api.get("/grupos/participantes", { params: { groupId: id }, timeout: 60000 });
       setDados(data.participantes || []);
       if ((data.participantes || []).length === 0) setError("Nenhum participante retornado. Verifique se o groupId está correto e a instância está conectada.");
     } catch (e: any) {
@@ -30,16 +77,18 @@ export default function Grupos() {
 
   function baixarCSV() {
     if (!groupId.trim() || dados.length === 0) return;
-    // usa token do localStorage para download autenticado via fetch
-    const token = localStorage.getItem("zapizapi_token") || localStorage.getItem("token") || "";
-    // fallback: tenta via api com blob
-    api.get("/grupos/export", { params: { groupId: groupId.trim() }, responseType: "blob", timeout: 60000 }).then(res => {
+    let id = groupId.trim();
+    const conv = extrairIdDeLink(id);
+    if (conv) id = conv;
+    api.get("/grupos/export", { params: { groupId: id }, responseType: "blob", timeout: 60000 }).then(res => {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
-      a.href = url; a.download = `participantes_${groupId.split("@")[0]}.csv`; a.click();
+      a.href = url; a.download = `participantes_${id.split("@")[0]}.csv`; a.click();
       URL.revokeObjectURL(url);
     }).catch((e: any) => {
-      setError(e.response?.data?.error || e.message || "Erro ao exportar CSV");
+      const blob = e.response?.data;
+      if (blob instanceof Blob) blob.text().then(t => { try { const j = JSON.parse(t); setError(j.error || t); } catch { setError(t); } });
+      else setError(e.response?.data?.error || e.message || "Erro ao exportar CSV");
     });
   }
 
@@ -47,24 +96,48 @@ export default function Grupos() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-6 h-6 text-accent" /> Extração de Grupos</h1>
-        <p className="text-gray-500 text-sm mt-1">Extraia participantes de um grupo WhatsApp via W-API e exporte em CSV</p>
+        <p className="text-gray-500 text-sm mt-1">Escolha o grupo pelo <b>nome</b> ou cole o <b>ID/link</b> — extraímos participantes e exportamos CSV</p>
       </div>
 
       <div className="bg-bg-card border border-gray-800 rounded-xl p-6 space-y-4">
-        <label className="text-sm text-gray-400">ID do grupo</label>
-        <div className="flex gap-2">
-          <input
+        <label className="text-sm text-gray-400 flex items-center gap-2">
+          Grupo WhatsApp
+          {loadingGrupos && <Loader2 className="w-3 h-3 animate-spin" />}
+        </label>
+
+        {grupos.length > 0 ? (
+          <select
             value={groupId}
             onChange={e => setGroupId(e.target.value)}
-            placeholder="12012345666643082066@g.us"
-            className="flex-1 px-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:border-accent"
-          />
+            className="w-full px-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white focus:outline-none focus:border-accent"
+          >
+            <option value="">— Selecione um grupo —</option>
+            {grupos.map(g => (
+              <option key={g.id} value={g.id}>{g.subject} — {g.id} {g.size ? `(${g.size})` : ""}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="text-xs text-gray-500">{loadingGrupos ? "Carregando grupos da instância..." : "Nenhum grupo listado (instância desconectada ou W-API sem fetch-groups). Use o campo abaixo."}</div>
+        )}
+
+        <div className="flex items-center gap-2 text-xs text-gray-600"><span className="h-px flex-1 bg-gray-800" /> ou cole ID/link <span className="h-px flex-1 bg-gray-800" /></div>
+
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              value={groupId}
+              onChange={e => setGroupId(e.target.value)}
+              placeholder='120123456...@g.us  ou  https://chat.whatsapp.com/ABC...'
+              className="w-full pl-9 pr-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:border-accent"
+            />
+          </div>
           <button onClick={buscar} disabled={loading} className="px-6 py-3 bg-accent hover:bg-accent-light disabled:opacity-50 rounded-xl font-medium flex items-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {loading ? "Buscando..." : "Extrair"}
           </button>
         </div>
-        <p className="text-xs text-gray-600">W-API: <code>GET /v1/group/get-Participants?instanceId=...&groupId=...</code> + <code>/v1/contacts/fetch-contacts</code> (paginado, cruza por <code>id</code>)</p>
+        <p className="text-xs text-gray-600">W-API usa <code>@g.us</code>. Link <code>chat.whatsapp.com</code> não funciona direto — selecione na lista. O nome sozinho também não funciona, precisa do ID.</p>
         {error && <div className="bg-red-400/10 border border-red-400/30 text-red-400 p-3 rounded-xl text-sm">{error}</div>}
       </div>
 
