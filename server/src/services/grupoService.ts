@@ -30,8 +30,21 @@ export async function buscarParticipantes(groupId: string): Promise<Participante
   const instanceId = getInstanceId();
   if (!instanceId) throw new Error("WAPI_INSTANCE_ID não configurado");
   if (!groupId) throw new Error("groupId é obrigatório (formato: 1203...@g.us)");
+  // valida formato - nome puro não funciona, precisa @g.us
+  if (!groupId.includes("@g.us")) {
+    throw new Error(`ID do grupo inválido: "${groupId}". Use o ID @g.us (ex: 1203...@g.us). Selecione o grupo na lista acima, não digite o nome "Pack Master".`);
+  }
   const url = `${BASE_URL}/v1/group/get-Participants?instanceId=${encodeURIComponent(instanceId)}&groupId=${encodeURIComponent(groupId)}`;
-  const res = await axios.get(url, { headers: getHeaders(), timeout: 35000 });
+  let res;
+  try {
+    res = await axios.get(url, { headers: getHeaders(), timeout: 35000 });
+  } catch (e: any) {
+    const status = e.response?.status;
+    const body = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    if (status === 403) throw new Error(`W-API 403 Forbidden: instância sem permissão para ler grupos (plano LITE pode não ter get-Participants). Detalhe: ${body}`);
+    if (status === 404) throw new Error(`Grupo não encontrado (404): verifique se o ID ${groupId} existe e a instância participa dele. ${body}`);
+    throw new Error(`Erro HTTP ${status || ""}: ${body}`);
+  }
   const data: any = res.data;
   if (data.error === true || data.error === "true") {
     throw new Error(`W-API error: ${JSON.stringify(data)}`);
@@ -100,14 +113,18 @@ export async function listarGrupos(): Promise<any[]> {
     const res = await axios.get(url, { headers: getHeaders(), timeout: 35000 });
     const data: any = res.data;
     if (data.error === true) throw new Error(JSON.stringify(data));
-    // W-API varia: { groups: [...] } ou array direto
     if (Array.isArray(data)) return data;
     if (Array.isArray(data.groups)) return data.groups;
     if (Array.isArray(data.data)) return data.data;
+    // alguns retornos vem em { result: [...] }
+    if (Array.isArray(data.result)) return data.result;
     return [];
   } catch (e: any) {
-    // se endpoint não existir, retorna vazio e deixa usuário digitar groupId
-    console.warn("[GRUPO] listarGrupos falhou:", e.response?.data || e.message);
+    const status = e.response?.status;
+    const body = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    if (status === 403) console.warn("[GRUPO] listarGrupos 403 - sem permissão LITE?", body);
+    else console.warn("[GRUPO] listarGrupos falhou:", status, body);
+    // propaga vazio para UI mostrar aviso, mas não quebra
     return [];
   }
 }
