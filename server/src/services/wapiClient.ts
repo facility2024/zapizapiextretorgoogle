@@ -11,10 +11,14 @@ import axios, { AxiosInstance } from "axios";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 
-const WAPI_BASE_URL = process.env.WAPI_BASE_URL || "https://api.w-api.app";
-const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID || "";
-const WAPI_TOKEN = process.env.WAPI_TOKEN || "";
+import "dotenv/config";
 const WAPI_API_KEY = process.env.WAPI_API_KEY || "";
+function getBaseUrl() { return process.env.WAPI_BASE_URL || "https://api.w-api.app"; }
+function getInstanceId() { return process.env.WAPI_INSTANCE_ID || ""; }
+function getToken() { return process.env.WAPI_TOKEN || ""; }
+const WAPI_BASE_URL = getBaseUrl();
+const WAPI_INSTANCE_ID = getInstanceId();
+const WAPI_TOKEN = getToken();
 
 interface WapiResponse {
   success: boolean;
@@ -60,17 +64,16 @@ let instanceTokenOverride = "";
 let createInstanceLog = "não executado";
 
 function getClient(token?: string): AxiosInstance {
-  // As operações de instância (qr-code, envio, status) exigem o TOKEN DA INSTÂNCIA.
-  // A chave da conta (WAPI_API_KEY) só é usada no create-instance (chamada explícita abaixo).
-  const authToken = token ?? (instanceTokenOverride || WAPI_TOKEN);
+  const authToken = token ?? (instanceTokenOverride || getToken() || WAPI_TOKEN);
+  const baseUrl = getBaseUrl();
   if (!api || apiToken !== authToken) {
     api = axios.create({
-      baseURL: WAPI_BASE_URL,
+      baseURL: baseUrl,
       headers: {
         Authorization: `Bearer ${authToken}`,
         "Content-Type": "application/json",
       },
-      timeout: 15000,
+      timeout: 35000,
     });
     apiToken = authToken;
   }
@@ -119,11 +122,16 @@ function toBase64DataUrl(filePath: string): string {
 export async function checkStatus(): Promise<ConnectionStatus> {
   try {
     const client = getClient();
-    const { data } = await client.get(`/v1/instance/status-instance?instanceId=${WAPI_INSTANCE_ID}`);
+    const id = getInstanceId() || WAPI_INSTANCE_ID;
+    if (!id || (!getToken() && !WAPI_TOKEN && !instanceTokenOverride)) {
+      console.error("[WAPI] WAPI_INSTANCE_ID ou WAPI_TOKEN não configurados");
+      return { status: "disconnected" };
+    }
+    const { data } = await client.get(`/v1/instance/status-instance?instanceId=${id}`);
     return { status: data.connected === true ? "connected" : "disconnected" };
   } catch (err: unknown) {
-    const error = err as { response?: { data?: unknown }; message?: string };
-    console.error("[WAPI] Erro ao verificar status:", error.response?.data || error.message);
+    const error = err as { response?: { data?: unknown }; message?: string; code?: string };
+    console.error("[WAPI] Erro ao verificar status:", error.response?.data || error.message, error.code || "");
     return { status: "disconnected" };
   }
 }
@@ -146,19 +154,17 @@ export function marcarDesconectado(): void {
  * Isso também aloca IP/porta de instâncias LITE recém-criadas.
  */
 export async function ensureInstanceCreated(): Promise<void> {
-  // Instância já configurada via painel (WAPI_TOKEN presente):
-  // usamos o token do painel e NÃO chamamos create-instance (evita regenerar
-  // um token inválido para uma instância que já existe/paga).
-  if (WAPI_TOKEN) {
+  if (getToken() || WAPI_TOKEN) {
     createInstanceLog = "ignorado (usando WAPI_TOKEN do .env)";
     return;
   }
   if (!WAPI_API_KEY) return;
+  const id = getInstanceId() || WAPI_INSTANCE_ID;
   const client = getClient(WAPI_API_KEY);
   try {
-    const { data } = await client.post(`/v1/client/create-instance?instanceId=${WAPI_INSTANCE_ID}`, {
+    const { data } = await client.post(`/v1/client/create-instance?instanceId=${id}`, {
       lite: true,
-      instanceName: WAPI_INSTANCE_ID,
+      instanceName: id,
       apiKey: WAPI_API_KEY,
     });
     // create-instance retorna o token da instância recém-criada
@@ -193,15 +199,12 @@ export async function getQrCode(): Promise<QrCodeResponse> {
   const client = getClient();
 
   // Tenta reiniciar/inicializar a instância antes de gerar o QR.
-  // Instâncias LITE recém-criadas precisam ser "iniciadas" para alocar IP/porta.
   try {
-    await client.get(`/v1/instance/restart?instanceId=${WAPI_INSTANCE_ID}`);
+    await client.get(`/v1/instance/restart?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`);
   } catch {
-    // ignora falhas de restart — o erro real virá no qr-code, se houver
   }
-
   try {
-    const { data } = await client.get(`/v1/instance/qr-code?instanceId=${WAPI_INSTANCE_ID}`);
+    const { data } = await client.get(`/v1/instance/qr-code?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`);
     // W-API retorna { error, instanceId, qrcode: "data:image/png;base64,..." }
     const qr = data.qrcode || data.qrCode || data.base64 || "";
     if (!qr) {
@@ -221,9 +224,10 @@ export async function getQrCode(): Promise<QrCodeResponse> {
     console.error("[WAPI] Erro ao obter QR Code:", raw);
 
     // Mensagem amigável para o erro comum de token/instância inválida
+    const curId = getInstanceId() || WAPI_INSTANCE_ID;
     if (raw.includes("Token inválido") || raw.includes("Invalid token")) {
       throw new Error(
-        `Token W-API inválido para ${WAPI_INSTANCE_ID}. ` +
+        `Token W-API inválido para ${curId}. ` +
           `create-instance: ${createInstanceLog}. ` +
           `O app usa a chave da conta (WAPI_API_KEY). Verifique se WAPI_API_KEY e WAPI_INSTANCE_ID ` +
           `estão corretos no .env e se esta instância pertence a essa conta.`
@@ -233,7 +237,7 @@ export async function getQrCode(): Promise<QrCodeResponse> {
       const dica = WAPI_API_KEY
         ? "Verifique se a WAPI_API_KEY está correta no .env."
         : "Defina a WAPI_API_KEY (chave da CONTA w-api.app) no .env para criar a instância automaticamente.";
-      throw new Error(`Instância W-API ${WAPI_INSTANCE_ID} sem IP/porta. ${dica}`);
+      throw new Error(`Instância W-API ${curId} sem IP/porta. ${dica}`);
     }
     throw new Error(`Falha ao obter QR Code: ${raw}`);
   }
@@ -245,7 +249,7 @@ export async function getQrCode(): Promise<QrCodeResponse> {
  */
 export async function restartInstance(): Promise<void> {
   const client = getClient();
-  await client.get(`/v1/instance/restart?instanceId=${WAPI_INSTANCE_ID}`);
+  await client.get(`/v1/instance/restart?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`);
 }
 
 /**
@@ -255,7 +259,7 @@ export async function restartInstance(): Promise<void> {
 export async function sendText(numero: string, texto: string): Promise<WapiResponse> {
   try {
     const client = getClient();
-    const { data } = await client.post(`/v1/message/send-text?instanceId=${WAPI_INSTANCE_ID}`, {
+    const { data } = await client.post(`/v1/message/send-text?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`, {
       phone: numero,
       message: texto,
     });
@@ -282,7 +286,7 @@ export async function sendImage(numero: string, imageUrl: string, caption?: stri
   try {
     const client = getClient();
     const imageData = toBase64DataUrl(imageUrl);
-    const { data } = await client.post(`/v1/message/send-image?instanceId=${WAPI_INSTANCE_ID}`, {
+    const { data } = await client.post(`/v1/message/send-image?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`, {
       phone: numero,
       image: imageData,
       caption: caption || "",
@@ -310,7 +314,7 @@ export async function sendAudio(numero: string, audioUrl: string): Promise<WapiR
   try {
     const client = getClient();
     const audioData = toBase64DataUrl(audioUrl);
-    const { data } = await client.post(`/v1/message/send-audio?instanceId=${WAPI_INSTANCE_ID}`, {
+    const { data } = await client.post(`/v1/message/send-audio?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`, {
       phone: numero,
       audio: audioData,
       ptt: true,
@@ -337,7 +341,7 @@ export async function sendAudio(numero: string, audioUrl: string): Promise<WapiR
 export async function setComposing(numero: string, durationMs: number): Promise<void> {
   try {
     const client = getClient();
-    await client.post(`/v1/chats/send-presence?instanceId=${WAPI_INSTANCE_ID}`, {
+    await client.post(`/v1/chats/send-presence?instanceId=${getInstanceId() || WAPI_INSTANCE_ID}`, {
       phone: numero,
       presence: "composing",
       delay: Math.floor(durationMs / 1000),

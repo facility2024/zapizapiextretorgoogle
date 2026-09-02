@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Settings,
+  Users,
 } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
@@ -17,6 +18,7 @@ import NovaCampanha from "./pages/NovaCampanha";
 import Historico from "./pages/Historico";
 import ExtratorGoogle from "./pages/ExtratorGoogle";
 import Configuracoes from "./pages/Configuracoes";
+import Grupos from "./pages/Grupos";
 import Login from "./pages/Login";
 import { TOKEN_STORAGE_KEY } from "./api";
 
@@ -67,6 +69,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
   { to: "/conectar", label: "Conectar", icon: <Link2 className="w-4 h-4" /> },
   { to: "/nova-campanha", label: "Nova Campanha", img: ICON_NOVA_CAMPANHA },
+  { to: "/grupos", label: "Grupos WhatsApp", icon: <Users className="w-4 h-4" /> },
   { to: "/historico", label: "Histórico", icon: <History className="w-4 h-4" /> },
   { to: "/extrator-maps", label: "Extrator Maps", img: ICON_GOOGLE_MAPS },
   { to: "/configuracoes", label: "Configurações", icon: <Settings className="w-4 h-4" /> },
@@ -187,6 +190,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/conectar" element={<Conectar />} />
           <Route path="/nova-campanha" element={<NovaCampanha />} />
+          <Route path="/grupos" element={<Grupos />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/extrator-maps" element={<ExtratorGoogle />} />
           <Route path="/configuracoes" element={<Configuracoes />} />

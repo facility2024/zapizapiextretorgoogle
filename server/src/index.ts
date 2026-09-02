@@ -17,6 +17,7 @@ import campaignRoutes from "./routes/campaigns.js";
 import extractorRoutes from "./routes/extractor.js";
 import configRoutes from "./routes/config.js";
 import authRoutes from "./routes/auth.js";
+import gruposRoutes from "./routes/grupos.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { verificarToken } from "./services/auth.js";
 import { iniciarScheduler } from "./services/scheduler.js";
@@ -63,6 +64,7 @@ app.use("/api/campaigns", campaignRoutes);
 app.use("/api/extractor", extractorRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/grupos", gruposRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");
