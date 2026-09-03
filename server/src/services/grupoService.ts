@@ -107,8 +107,22 @@ export function paraCSV(dados: ParticipanteFinal[]): string {
   return linhas.join("\n");
 }
 
+// Buscar info de um grupo específico (nome/subject)
+async function buscarInfoGrupo(groupId: string): Promise<string | null> {
+  const instanceId = getInstanceId();
+  if (!instanceId) return null;
+  try {
+    const url = `${BASE_URL}/v1/group/get-group?instanceId=${encodeURIComponent(instanceId)}&groupId=${encodeURIComponent(groupId)}`;
+    const res = await axios.get(url, { headers: getHeaders(), timeout: 15000 });
+    const data: any = res.data;
+    return data.subject || data.name || data.groupName || null;
+  } catch {
+    return null;
+  }
+}
+
 // Listar grupos da instância via /v1/chats/fetch-chats (endpoint real da W-API)
-// Filtra apenas chats com @g.us e pagina até totalPages (1022 chats = ~11 páginas)
+// Filtra apenas chats com @g.us e pagina até totalPages
 export async function listarGrupos(): Promise<any[]> {
   const instanceId = getInstanceId();
   const perPage = 100;
@@ -124,14 +138,18 @@ export async function listarGrupos(): Promise<any[]> {
       const chats: any[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
       for (const c of chats) {
         if (c.id && String(c.id).includes("@g.us")) {
-          grupos.push({ id: c.id, subject: c.name || c.subject || c.id, name: c.name, size: c.participantsCount });
+          let nome = c.name || c.subject || c.groupName || null;
+          // Se o nome veio igual ao ID, tenta buscar o nome real
+          if (!nome || nome === c.id) {
+            nome = await buscarInfoGrupo(String(c.id));
+          }
+          grupos.push({ id: c.id, subject: nome || c.id, name: nome, size: c.participantsCount });
         }
       }
       totalPages = Number(data.totalPages) || 1;
       page++;
       if (page <= totalPages && grupos.length < 500) await new Promise(r => setTimeout(r, 200));
       else break;
-      // limita a 500 grupos para não estourar (mais que suficiente)
       if (page > 10) break;
     } while (page <= totalPages);
     return grupos;
