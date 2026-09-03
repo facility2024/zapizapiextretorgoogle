@@ -18,6 +18,7 @@ import extractorRoutes from "./routes/extractor.js";
 import configRoutes from "./routes/config.js";
 import authRoutes from "./routes/auth.js";
 import gruposRoutes from "./routes/grupos.js";
+import webhookRoutes from "./routes/webhook.js";
 import { onStatusUpdate } from "./services/queue.js";
 import { verificarToken } from "./services/auth.js";
 import { iniciarScheduler } from "./services/scheduler.js";
@@ -40,10 +41,13 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Autenticação: protege todas as rotas /api exceto login e health
+// Webhook W-API — público (W-API chama sem token)
+app.use("/api/webhook", webhookRoutes);
+
+// Autenticação: protege todas as rotas /api exceto login, health e webhook
 app.use("/api", (req, res, next) => {
   if (req.method === "OPTIONS") return next();
-  if (req.path === "/auth/login" || req.path === "/health") return next();
+  if (req.path === "/auth/login" || req.path === "/health" || req.path.startsWith("/webhook")) return next();
   const auth = req.headers.authorization;
   const token = auth && auth.startsWith("Bearer ") ? auth.slice(7) : null;
   const email = token ? verificarToken(token) : null;

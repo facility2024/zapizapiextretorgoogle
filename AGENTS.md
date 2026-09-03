@@ -1,83 +1,61 @@
 # AGENTS.md
 
 ## Projeto
-
-Zapizapi — app de disparo e agendamento de mensagens WhatsApp via W-API (wapi.chat).
+Zapizapi — disparo/agendamento WhatsApp via W-API (`w-api.app`). App única: Express serve API + `client/dist` (SPA fallback) na mesma porta.
 
 ## Comandos
-
 ```bash
-# Instalar dependências (raiz + server + client — NÃO é workspace, instale em cada pasta)
+# Instalar (monorepo manual, sem workspaces — instale em cada pasta)
 npm install && cd server && npm install && cd ../client && npm install
 
-# Rodar tudo (server :3001 + client :5173 via concurrently)
+# Dev (server :3001 via tsx watch + client :5173 via Vite, concurrently)
 npm run dev
-
-# Só o server (tsx watch, porta 3001)
+# Só server / só client
 cd server && npm run dev
-
-# Só o client (Vite, porta 5173)
 cd client && npm run dev
 
-# Prisma: gerar cliente e criar o banco SQLite (rode ANTES de subir o server)
+# Prisma — rode ANTES de subir o server (gera client e cria/atualiza tabelas)
 cd server && npm run db:generate && npm run db:push
-# atalhos equivalentes aos comandos acima:
-cd server && npx prisma generate && npx prisma db push
+# equivale a: npx prisma generate && npx prisma db push
 
-# Buildar só o frontend (server NÃO é compilado — roda via tsx)
-npm run build:client
+# Build (só frontend; server roda .ts direto via tsx, não usa dist)
+npm run build        # alias para build:client
+npm run build:client # cd client && vite build
 ```
+Não há `npm test`, lint ou format — não procure esses comandos.
 
-Não há `npm test`, lint nem format configurados — não procure esses comandos.
+## Variáveis de ambiente
+Copie `server/.env.example` → `server/.env`:
+- `WAPI_INSTANCE_ID`, `WAPI_TOKEN` — instância W-API
+- `WAPI_API_KEY` — chave da CONTA `w-api.app` (diferente do token); usada em `POST /v1/client/create-instance` para auto-provisionar (`server/src/services/wapiClient.ts:156`)
+- `WAPI_BASE_URL` — padrão `https://api.w-api.app` (ver `wapiClient.ts:16` e `.env.example`); `docker-compose.yml` traz default errado `https://api.wapi.chat`
+- `DATABASE_URL` — **Postgres/Supabase** (provider `postgresql` em `server/prisma/schema.prisma:6`); string do pooler Supabase porta 6543 (ex. no `.env.example`). O `file:./dev.db` legado ainda existe em `server/prisma/dev.db` mas não é mais usado
+- `GEOAPIFY_KEY` — única fonte do extrator (`server/src/services/geoapifyScraper.ts`); chaves extras podem ser salvas no banco (`ApiKey`) via UI Config e há rotação automática (`configStore.ts`)
+- `AUTH_EMAIL` / `AUTH_SENHA` / `AUTH_SECRET` — auth HMAC (`server/src/services/auth.ts:8`); default `otavio@gmail.com` / `123` se não definidos; tokens expiram em 7 dias
+- `PORT` — padrão 3001 (`server/src/index.ts:36`)
 
-## Variáveis de Ambiente
-
-Copie `server/.env.example` para `server/.env` e preencha:
-- `WAPI_INSTANCE_ID` — ID da instância W-API
-- `WAPI_TOKEN` — Token de autenticação da instância
-- `WAPI_API_KEY` — Chave da CONTA w-api.app (diferente do token); usada para criar/auto-provisionar a instância via `POST /v1/client/create-instance`
-- `WAPI_BASE_URL` — padrão `https://api.w-api.app` (definido em `wapiClient.ts` e no `.env.example`)
-- `DATABASE_URL` — SQLite local: `file:./dev.db`; em deploy Docker: `file:/app/data/dev.db`
-- `GEOAPIFY_KEY` — chave do Geoapify (única fonte do extrator); free tier 3.000 req/dia por projeto
-
-Nunca commite o `.env` (está no `.gitignore`).
+Nunca commite `.env` (está no `.gitignore`).
 
 ## Arquitetura
-
-- **Monorepo manual** (sem `workspaces`): `server/` (Express + Prisma + SQLite) e `client/` (React + Vite + Tailwind).
-- **Banco**: Prisma + SQLite local (`server/prisma/dev.db`, criado via `db:push`). `server/supabase.sql` é espelho para Supabase na nuvem.
-- **Fila**: em memória com persistência via Prisma (sem Redis no MVP).
-- **WebSocket**: socket.io emite `campaign-update` para o dashboard em tempo real (`queue.ts` registra o callback em `index.ts`).
-- **Proxy de dev**: Vite roteia `/api` e `/uploads` para `localhost:3001` (`client/vite.config.ts`).
-- **Deploy = 1 serviço**: o Express serve a API e também o `client/dist` (SPA fallback) na mesma porta. Não crie dois serviços nem proxy extra.
+- **Monorepo manual** (`server/` Express + Prisma + Postgres, `client/` React + Vite + Tailwind + PWA `vite-plugin-pwa`). Sem `workspaces`; entrypoints: `server/src/index.ts`, `client/vite.config.ts`.
+- **Banco**: Prisma `postgresql` — espelho DDL em `server/supabase.sql` (não usado em dev, apenas ref. Supabase). Modelos principais: `Campanha`, `Contato`, `CampanhaContato`, `Envio` (`schema.prisma:10`).
+- **Fila**: em memória por campanha (`Map` em `server/src/services/queue.ts:28`) com persistência via Prisma; suporta campanhas concorrentes, pausa/cancelamento, delay inicial 10-20s e delay aleatório entre envios (`delayEntreMsgMin/Max`).
+- **Scheduler**: `server/src/services/scheduler.ts:11` — poll a cada 30s por `Campanha` com `status=agendada` e `agendarPara <= now`; marca `em_andamento` antes de enfileirar para evitar duplo disparo.
+- **WebSocket**: `socket.io` emite `campaign-update` (`queue.ts:90` registra callback em `index.ts:90`); extrator usa `socket/extractorSocket.ts`.
+- **Proxy dev**: Vite `server.proxy` encaminha `/api` e `/uploads` para `localhost:3001` (`client/vite.config.ts:39`).
+- **Deploy = 1 serviço**: `Dockerfile` builda client (`npx prisma generate` + `npm run build`) e sobe `tsx src/index.ts` na `PORT`. Express serve `client/dist` com fallback SPA (`index.ts:70`).
 
 ## Convenções
-
-- Código e comentários em português.
-- Toda a lógica de domínio fica em `server/src/services/` (ex.: `messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`, `geoapifyScraper.ts`, `scheduler.ts`, `auth.ts`, `timezone.ts`).
-- **Imports do server usam extensão `.js`** mesmo em arquivos `.ts` (module `NodeNext`/`ESM`). Ao editar imports, mantenha o `.js` — senão quebra em runtime.
-- **O server roda `.ts` direto via `tsx`** (scripts `dev`/`start`). O deploy não usa o build compilado do server (o script `build` roda `tsc`, mas o Docker sobe via `tsx`); não dependa de saída compilada.
-- Spintax: `{op1|op2|op3}` é resolvido DEPOIS das variáveis `{{var}}`.
-- Saudações (`messageParser.ts`): `{{ola}}` é dinâmico (Bom dia/tarde/noite pelo horário); `{{bom_dia}}`/`{{boa_tarde}}`/`{{boa_noite}}` são fixos. `{{numero}}`, `{{nome}}`, `{{empresa}}`, `{{cidade}}` e qualquer coluna extra da planilha funcionam.
-- Delay entre envios é aleatório dentro de um range configurável (não fixo).
-- Tema: fundo `#0A0A0A`, accent `#8B00FF`/`#A100FF`.
+- Código/comentários em português. Lógica de domínio em `server/src/services/` (`messageParser.ts`, `wapiClient.ts`, `queue.ts`, `excelParser.ts`, `audioConverter.ts`, `geoapifyScraper.ts`, `scheduler.ts`, `auth.ts`).
+- **Imports ESM com `.js`** mesmo em `.ts` (`tsconfig.json:4` `module: NodeNext`); mantenha a extensão — sem isso quebra em runtime via `tsx`.
+- **Server roda `.ts` via `tsx`** (`server/package.json:6` `tsx watch` / `tsx src/index.ts`); `npm run build` só compila `tsc` mas o Docker não usa o `dist`.
+- Variáveis/spintax (`messageParser.ts:71`): resolver `{{var}}` antes de `{a|b}`; `{{ola}}` dinâmico por horário, `{{bom_dia}}`/`{{boa_tarde}}`/`{{boa_noite}}` fixos; `{{numero}}`/`{{nome}}`/`{{empresa}}`/`{{cidade}}` + colunas extras da planilha.
+- Números normalizados com DDI 55 automaticamente (`excelParser.ts:30`, `geoapifyScraper.ts:47`).
 
 ## Gotchas
-
-- `fluent-ffmpeg` exige `ffmpeg` no sistema (o `Dockerfile` já instala via `apk add ffmpeg`).
-- W-API não é oficial — payloads podem mudar; consulte a doc antes de alterar `wapiClient.ts`.
-- Planilha (`xlsx`) precisa de coluna de número (aliases: numero, telefone, whatsapp, phone).
-- Números são normalizados com DDI 55 automaticamente.
-- O script `db:seed` existe no `package.json` mas aponta para `prisma/seed.ts` que NÃO existe — não use.
-- `docker-compose.yml` define `WAPI_BASE_URL` default como `https://api.w-api.chat` (domínio errado); o correto é `https://api.w-api.app` (ver `wapiClient.ts`/`.env.example`). Prefira rodar via `Dockerfile`/`npm start`.
-
-## Deploy (Docker / Easypanel)
-
-Imagem única (raiz `Dockerfile`): builda o client e sobe o server servindo API + frontend.
-
-- **Build**: `npx prisma generate && npx prisma db push && npm run build`
-- **Start**: `npm start` (sobe o server via `tsx`)
-- **Porta**: `PORT` (padrão 3001)
-- **Env**: `WAPI_INSTANCE_ID`, `WAPI_TOKEN`, `WAPI_BASE_URL`, `DATABASE_URL="file:/app/data/dev.db"`, `PORT`
-- ⚠️ O `Dockerfile` NÃO roda `prisma db push` (o comentário dentro dele está errado). Sem isso o app sobe mas as tabelas não existem e quebra em runtime. Garanta o `db push` (via o comando de Build acima) ou rode manualmente no container.
-- **Persistência**: o SQLite grava em `/app/data/dev.db` e há uploads em `server/uploads` — monte volumes em `/app/data` e `/app/server/uploads` (NUNCA monte o `/app/server` inteiro, senão o volume vazio sobrescreve o código do server). Defina `DATABASE_URL=file:/app/data/dev.db` na deploy. Para Postgres/Supabase, troque `DATABASE_URL` e adapte `db.ts`/`schema.prisma` (espelho em `server/supabase.sql`).
+- `fluent-ffmpeg` exige `ffmpeg` no host (`Dockerfile:4` instala via `apk add ffmpeg`).
+- W-API não-oficial — payloads mudam; cheque `wapiClient.ts` antes de alterar (erro no corpo mesmo com HTTP 200 é tratado em `erroNoCorpo:35`).
+- Planilha precisa coluna de número; aliases: `numero`, `telefone`, `whatsapp`, `phone`, `celular`, `número` (`excelParser.ts:25`); CSV com `;` é detectado.
+- `db:seed` aponta para `prisma/seed.ts` inexistente — não use (`server/package.json:11`).
+- `docker-compose.yml:9` default `WAPI_BASE_URL` está errado (`wapi.chat`); correto é `w-api.app`.
+- `Dockerfile:36` só roda `prisma generate`, **não** `prisma db push` (comentário na linha 41 está errado); sem `db push` as tabelas não existem em runtime. No deploy, garanta `npx prisma db push` no step de build ou manual no container; `DATABASE_URL=file:/app/data/dev.db` só vale para SQLite legado — para Postgres/Supabase troque a URL e monte volumes apenas em `/app/data` e `/app/server/uploads` (nunca o `/app/server` inteiro).
