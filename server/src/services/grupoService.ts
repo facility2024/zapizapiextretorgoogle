@@ -122,9 +122,9 @@ export async function listarGrupos(): Promise<any[]> {
   } catch (e: any) {
     const status = e.response?.status;
     const body = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    if (status === 403) console.warn("[GRUPO] listarGrupos 403 - sem permissão LITE?", body);
-    else console.warn("[GRUPO] listarGrupos falhou:", status, body);
-    // propaga vazio para UI mostrar aviso, mas não quebra
-    return [];
+    console.warn("[GRUPO] listarGrupos falhou:", status, body, "instanceId:", instanceId);
+    if (status === 403) throw new Error(`W-API 403: sem permissão para listar grupos. Verifique se a instância ${instanceId} é PRO e está conectada. Detalhe: ${body}`);
+    if (status === 401) throw new Error(`W-API 401 Token inválido para ${instanceId}. Detalhe: ${body}`);
+    throw new Error(`Falha ao listar grupos (${status || "sem status"}): ${body}`);
   }
 }
