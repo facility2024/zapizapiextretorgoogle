@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Download, Search, Loader2, Link2, RefreshCw } from "lucide-react";
+import { Users, Download, Search, Loader2, Link2, RefreshCw, FileSpreadsheet } from "lucide-react";
 import api from "../api";
 
 interface Participante {
@@ -87,6 +87,23 @@ export default function Grupos() {
     });
   }
 
+  function baixarExcel() {
+    if (!groupId.trim() || dados.length === 0) return;
+    let id = groupId.trim();
+    const conv = extrairIdDeLink(id);
+    if (conv) id = conv;
+    api.get("/grupos/export-excel", { params: { groupId: id }, responseType: "blob", timeout: 60000 }).then(res => {
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = `participantes_${id.split("@")[0]}.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+    }).catch((e: any) => {
+      const blob = e.response?.data;
+      if (blob instanceof Blob) blob.text().then(t => { try { const j = JSON.parse(t); setError(j.error || t); } catch { setError(t); } });
+      else setError(e.response?.data?.error || e.message || "Erro ao exportar Excel");
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -162,9 +179,14 @@ export default function Grupos() {
         <div className="bg-bg-card border border-gray-800 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">{dados.length} participantes</h2>
-            <button onClick={baixarCSV} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
-              <Download className="w-4 h-4" /> Baixar CSV
-            </button>
+            <div className="flex gap-2">
+              <button onClick={baixarCSV} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
+                <Download className="w-4 h-4" /> Baixar CSV
+              </button>
+              <button onClick={baixarExcel} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4" /> Baixar Excel
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

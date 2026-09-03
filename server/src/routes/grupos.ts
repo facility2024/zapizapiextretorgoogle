@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { buscarParticipantes, buscarTodosContatos, extrairParticipantesComNome, paraCSV, listarGrupos } from "../services/grupoService.js";
+import { buscarParticipantes, buscarTodosContatos, extrairParticipantesComNome, paraCSV, paraExcel, listarGrupos } from "../services/grupoService.js";
 
 const router = Router();
 
@@ -39,6 +39,21 @@ router.get("/export", async (req, res) => {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.csv"`);
     res.send(csv);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/grupos/export-excel?groupId=... -> Excel download
+router.get("/export-excel", async (req, res) => {
+  try {
+    const groupId = String(req.query.groupId || "").trim();
+    if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
+    const dados = await extrairParticipantesComNome(groupId);
+    const buffer = paraExcel(dados);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.xlsx"`);
+    res.send(buffer);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

@@ -5,6 +5,7 @@
  */
 import "dotenv/config";
 import axios from "axios";
+import * as XLSX from "xlsx";
 
 const BASE_URL = (process.env.WAPI_BASE_URL || "https://api.w-api.app").replace(/\/$/, "");
 function getInstanceId() { return process.env.WAPI_INSTANCE_ID || ""; }
@@ -105,6 +106,16 @@ export function paraCSV(dados: ParticipanteFinal[]): string {
   };
   const linhas = ["id,numero,admin,nome", ...dados.map(r => `${esc(r.id)},${esc(r.numero)},${esc(r.admin)},${esc(r.nome)}`)];
   return linhas.join("\n");
+}
+
+// 5. Excel
+export function paraExcel(dados: ParticipanteFinal[]): Buffer {
+  const rows = dados.map(r => ({ ID: r.id, Numero: r.numero, Admin: r.admin, Nome: r.nome || "" }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{ wch: 22 }, { wch: 15 }, { wch: 12 }, { wch: 30 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Participantes");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
 // Buscar info de um grupo específico (nome/subject)
