@@ -105,20 +105,34 @@ export function paraCSV(dados: ParticipanteFinal[]): string {
   return linhas.join("\n");
 }
 
-// Listar grupos da instância (para preencher select)
+// Listar grupos da instância via /v1/chats/fetch-chats (endpoint real da W-API)
+// Filtra apenas chats com @g.us e pagina até totalPages (1022 chats = ~11 páginas)
 export async function listarGrupos(): Promise<any[]> {
   const instanceId = getInstanceId();
-  const url = `${BASE_URL}/v1/group/fetch-groups?instanceId=${encodeURIComponent(instanceId)}`;
+  const perPage = 100;
+  let page = 1;
+  let totalPages = 1;
+  const grupos: any[] = [];
   try {
-    const res = await axios.get(url, { headers: getHeaders(), timeout: 35000 });
-    const data: any = res.data;
-    if (data.error === true) throw new Error(JSON.stringify(data));
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.groups)) return data.groups;
-    if (Array.isArray(data.data)) return data.data;
-    // alguns retornos vem em { result: [...] }
-    if (Array.isArray(data.result)) return data.result;
-    return [];
+    do {
+      const url = `${BASE_URL}/v1/chats/fetch-chats?instanceId=${encodeURIComponent(instanceId)}&page=${page}&perPage=${perPage}`;
+      const res = await axios.get(url, { headers: getHeaders(), timeout: 35000 });
+      const data: any = res.data;
+      if (data.error === true) throw new Error(JSON.stringify(data));
+      const chats: any[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
+      for (const c of chats) {
+        if (c.id && String(c.id).includes("@g.us")) {
+          grupos.push({ id: c.id, subject: c.name || c.subject || c.id, name: c.name, size: c.participantsCount });
+        }
+      }
+      totalPages = Number(data.totalPages) || 1;
+      page++;
+      if (page <= totalPages && grupos.length < 500) await new Promise(r => setTimeout(r, 200));
+      else break;
+      // limita a 500 grupos para não estourar (mais que suficiente)
+      if (page > 10) break;
+    } while (page <= totalPages);
+    return grupos;
   } catch (e: any) {
     const status = e.response?.status;
     const body = e.response?.data ? JSON.stringify(e.response.data) : e.message;
