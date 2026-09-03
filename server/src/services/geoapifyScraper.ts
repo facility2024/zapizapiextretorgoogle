@@ -104,6 +104,50 @@ async function geocodificar(local: string): Promise<Area> {
   return {};
 }
 
+/** Tenta geocodificar com variações do texto (corrigir typos comuns). */
+async function geocodificarComRetry(local: string): Promise<Area> {
+  let area = await geocodificar(local);
+  if (area.bbox || area.center) return area;
+
+  // Tenta sem acentos e com typos corrigidos
+  const correcoes: Record<string, string> = {
+    "minas gerias": "minas gerais",
+    "sao paul": "são paulo",
+    "rio de janeiro": "rio de janeiro",
+    "goiania": "goiânia",
+    "curitiba": "curitiba",
+  };
+  const lower = local.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  for (const [errado, certo] of Object.entries(correcoes)) {
+    if (lower.includes(errado.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
+      area = await geocodificar(certo);
+      if (area.bbox || area.center) return area;
+    }
+  }
+
+  // Último recurso: busca direta com o texto original (sem countrycodes)
+  try {
+    const { data } = await axios.get(NOMINATIM_URL, {
+      params: { format: "jsonv2", limit: 1, q: local },
+      headers: { "User-Agent": "zapizapi/1.0 (extrator geoapify)" },
+      timeout: 15000,
+    });
+    const item = Array.isArray(data) ? data[0] : null;
+    if (item) {
+      const bb = item.boundingbox;
+      if (Array.isArray(bb) && bb.length === 4) {
+        const [south, north, west, east] = bb.map(Number);
+        if ([south, north, west, east].every((n) => Number.isFinite(n))) {
+          return { bbox: [south, west, north, east] };
+        }
+      }
+      if (item.lat && item.lon) return { center: { lat: Number(item.lat), lon: Number(item.lon) } };
+    }
+  } catch {}
+
+  return {};
+}
+
 /**
  * Mapeia termos em português para categorias da Geoapify.
  * `cat` é a categoria específica (pode não existir); `grupo` é o top-level (sempre válido) usado como fallback.
@@ -276,7 +320,7 @@ export async function buscarEmpresasSemSite(
   }
 
   const { termo, local } = parseQuery(query);
-  const area = await geocodificar(local || termo);
+  const area = await geocodificarComRetry(local || termo);
   if (!area.bbox && !area.center) {
     throw new Error(
       "Não foi possível localizar a região. Inclua uma cidade na busca, ex: 'restaurantes em São Paulo'."
