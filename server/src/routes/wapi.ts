@@ -14,6 +14,19 @@ router.get("/status", async (_req, res) => {
   res.json(status);
 });
 
+// GET /api/wapi/debug — mostra qual instância o server está usando (mascara token)
+router.get("/debug", async (_req, res) => {
+  const id = process.env.WAPI_INSTANCE_ID || "";
+  const tok = process.env.WAPI_TOKEN || "";
+  res.json({
+    instanceId: id,
+    instanceIdMasked: id ? id.slice(0, 4) + "..." + id.slice(-4) : "",
+    hasToken: !!tok,
+    tokenMasked: tok ? tok.slice(0, 4) + "..." + tok.slice(-4) : "",
+    baseUrl: process.env.WAPI_BASE_URL || "https://api.w-api.app",
+  });
+});
+
 // GET /api/wapi/qrcode — obtém QR Code para pareamento
 router.get("/qrcode", async (_req, res) => {
   try {
