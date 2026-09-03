@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Download, Search, Loader2, Link2 } from "lucide-react";
+import { Users, Download, Search, Loader2, Link2, RefreshCw } from "lucide-react";
 import api from "../api";
 
 interface Participante {
@@ -12,11 +12,8 @@ interface GrupoOpt { id: string; subject?: string; name?: string; size?: number;
 
 function extrairIdDeLink(input: string): string | null {
   const s = input.trim();
-  // já é ID direto
   if (s.includes("@g.us")) return s;
-  // link convite https://chat.whatsapp.com/ABC123 -> não dá pra converter sem API extra, avisa
   if (s.includes("chat.whatsapp.com/")) return null;
-  // só números? tenta assumir que é ID sem @g.us
   if (/^\d{10,}@g\.us$/.test(s)) return s;
   if (/^\d{10,}$/.test(s) && s.length >= 15) return `${s}@g.us`;
   return null;
@@ -30,48 +27,46 @@ export default function Grupos() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function carregar() {
-      setLoadingGrupos(true);
-      try {
-        const { data } = await api.get("/grupos", { timeout: 40000 });
-        const lista: GrupoOpt[] = data.grupos || [];
-        // normaliza id/subject
-        const norm = lista.map((g: any) => ({
-          id: g.id || g.groupId || g.jid || "",
-          subject: g.subject || g.name || g.groupName || g.id,
-          size: g.size || g.participantsCount,
-        })).filter(g => g.id.includes("@g.us"));
-        setGrupos(norm);
-      } catch {
-        // sem lista, deixa input manual
-      } finally { setLoadingGrupos(false); }
-    }
-    carregar();
-  }, []);
+  async function carregarGrupos() {
+    setLoadingGrupos(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/grupos", { timeout: 40000 });
+      const lista: GrupoOpt[] = data.grupos || [];
+      const norm = lista.map((g: any) => ({
+        id: g.id || g.groupId || g.jid || "",
+        subject: g.subject || g.name || g.groupName || g.id,
+        size: g.size || g.participantsCount,
+      })).filter(g => g.id.includes("@g.us"));
+      setGrupos(norm);
+      if (norm.length === 0) setError("Nenhum grupo encontrado. Verifique se o WhatsApp da instância PRO (FD2A1Q) está conectado e participa de grupos. Clique em Recarregar.");
+    } catch (e: any) {
+      setError(e.response?.data?.error || "Falha ao carregar lista de grupos. Verifique se a instância PRO está Online.");
+    } finally { setLoadingGrupos(false); }
+  }
 
-  async function buscar() {
-    let id = groupId.trim();
-    // aceita link/nome colado e tenta converter
+  useEffect(() => { carregarGrupos(); }, []);
+
+  async function buscar(comId?: string) {
+    let id = (comId || groupId).trim();
     const conv = extrairIdDeLink(id);
     if (id.includes("chat.whatsapp.com")) {
-      setError("Link de convite (chat.whatsapp.com) não é o ID do grupo. Selecione o grupo na lista acima ou use o ID @g.us. No WhatsApp: abra o grupo > Dados do grupo > o ID aparece ao convidar (ou use a lista).");
+      setError("Link de convite (chat.whatsapp.com) não é o ID. Clique no grupo na lista acima — o sistema já usa o @g.us correto.");
       return;
     }
-    if (!id) { setError("Selecione um grupo na lista ou cole o ID (ex: 12012345666643082066@g.us)"); return; }
+    if (!id) { setError("Selecione um grupo na lista ou cole o ID @g.us"); return; }
     if (!id.includes("@g.us")) {
-      // se digitou só nome, avisa
-      if (!/^\d/.test(id)) { setError("Digite o ID do grupo, não o nome. Escolha na lista acima ou cole o ID @g.us"); return; }
+      if (!/^\d/.test(id)) { setError("Selecione o grupo na lista acima. Nome sozinho não funciona, precisa do @g.us"); return; }
       if (conv) id = conv;
     }
     setLoading(true); setError(null); setDados([]);
     try {
       const { data } = await api.get("/grupos/participantes", { params: { groupId: id }, timeout: 60000 });
       setDados(data.participantes || []);
-      if ((data.participantes || []).length === 0) setError("Nenhum participante retornado. Verifique se o groupId está correto e a instância está conectada.");
+      setGroupId(id);
+      if ((data.participantes || []).length === 0) setError("Nenhum participante retornado. Verifique se o ID está correto e a instância está conectada.");
     } catch (e: any) {
-      const msg = e.response?.data?.error || e.message || "Erro ao buscar participantes";
-      setError(msg);
+      setError(e.response?.data?.error || e.message || "Erro ao buscar participantes");
     } finally { setLoading(false); }
   }
 
@@ -96,31 +91,54 @@ export default function Grupos() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-6 h-6 text-accent" /> Extração de Grupos</h1>
-        <p className="text-gray-500 text-sm mt-1">Escolha o grupo pelo <b>nome</b> ou cole o <b>ID/link</b> — extraímos participantes e exportamos CSV</p>
+        <p className="text-gray-500 text-sm mt-1">WhatsApp logado → lista todos os grupos automaticamente. Clique no grupo para extrair — sem precisar colar ID/link</p>
       </div>
 
       <div className="bg-bg-card border border-gray-800 rounded-xl p-6 space-y-4">
-        <label className="text-sm text-gray-400 flex items-center gap-2">
-          Grupo WhatsApp
-          {loadingGrupos && <Loader2 className="w-3 h-3 animate-spin" />}
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm text-gray-400 flex items-center gap-2">
+            Grupos vinculados ao WhatsApp logado
+            {loadingGrupos && <Loader2 className="w-3 h-3 animate-spin" />}
+          </label>
+          <button onClick={carregarGrupos} disabled={loadingGrupos} className="text-xs px-3 py-1.5 bg-bg-primary border border-gray-700 rounded-lg hover:border-accent flex items-center gap-1.5">
+            <RefreshCw className={`w-3 h-3 ${loadingGrupos ? "animate-spin" : ""}`} /> Recarregar
+          </button>
+        </div>
 
-        {grupos.length > 0 ? (
-          <select
-            value={groupId}
-            onChange={e => setGroupId(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white focus:outline-none focus:border-accent"
-          >
-            <option value="">— Selecione um grupo —</option>
-            {grupos.map(g => (
-              <option key={g.id} value={g.id}>{g.subject} — {g.id} {g.size ? `(${g.size})` : ""}</option>
-            ))}
-          </select>
+        {loadingGrupos ? (
+          <div className="text-xs text-gray-500 py-4 text-center">Carregando grupos da instância PRO...</div>
+        ) : grupos.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+              {grupos.map(g => (
+                <button
+                  key={g.id}
+                  onClick={() => buscar(g.id)}
+                  className={`text-left p-3 rounded-xl border transition-all ${groupId === g.id ? "bg-accent/20 border-accent" : "bg-bg-primary border-gray-800 hover:border-gray-600"}`}
+                >
+                  <p className="text-sm font-medium truncate">{g.subject}</p>
+                  <p className="text-xs text-gray-500 font-mono truncate">{g.id} {g.size ? `· ${g.size} participantes` : ""}</p>
+                </button>
+              ))}
+            </div>
+            <select
+              value={groupId}
+              onChange={e => setGroupId(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white focus:outline-none focus:border-accent"
+            >
+              <option value="">— ou selecione na lista acima —</option>
+              {grupos.map(g => (
+                <option key={g.id} value={g.id}>{g.subject} — {g.id}</option>
+              ))}
+            </select>
+          </>
         ) : (
-          <div className="text-xs text-gray-500">{loadingGrupos ? "Carregando grupos da instância..." : "Nenhum grupo listado (instância desconectada ou W-API sem fetch-groups). Use o campo abaixo."}</div>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 p-3 rounded-xl text-sm">
+            Nenhum grupo listado. Isso acontece quando a instância está <b>desconectada</b> ou ainda é <b>LITE</b>. Confirme que o Easypanel está com <code>FD2A1Q-ZMM3LU-NFLZW0</code> (PRO) e status <b>Online</b> no Dashboard, depois clique em Recarregar.
+          </div>
         )}
 
-        <div className="flex items-center gap-2 text-xs text-gray-600"><span className="h-px flex-1 bg-gray-800" /> ou cole ID/link <span className="h-px flex-1 bg-gray-800" /></div>
+        <div className="flex items-center gap-2 text-xs text-gray-600"><span className="h-px flex-1 bg-gray-800" /> ou cole ID manualmente <span className="h-px flex-1 bg-gray-800" /></div>
 
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -128,16 +146,15 @@ export default function Grupos() {
             <input
               value={groupId}
               onChange={e => setGroupId(e.target.value)}
-              placeholder='120123456...@g.us  ou  https://chat.whatsapp.com/ABC...'
+              placeholder='1201...@g.us  (link chat.whatsapp.com não funciona direto)'
               className="w-full pl-9 pr-4 py-3 rounded-xl bg-bg-primary border border-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:border-accent"
             />
           </div>
-          <button onClick={buscar} disabled={loading} className="px-6 py-3 bg-accent hover:bg-accent-light disabled:opacity-50 rounded-xl font-medium flex items-center gap-2">
+          <button onClick={() => buscar()} disabled={loading} className="px-6 py-3 bg-accent hover:bg-accent-light disabled:opacity-50 rounded-xl font-medium flex items-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {loading ? "Buscando..." : "Extrair"}
           </button>
         </div>
-        <p className="text-xs text-gray-600">W-API usa <code>@g.us</code>. Link <code>chat.whatsapp.com</code> não funciona direto — selecione na lista. O nome sozinho também não funciona, precisa do ID.</p>
         {error && <div className="bg-red-400/10 border border-red-400/30 text-red-400 p-3 rounded-xl text-sm">{error}</div>}
       </div>
 
@@ -166,7 +183,7 @@ export default function Grupos() {
               </tbody>
             </table>
           </div>
-          <div className="text-xs text-gray-600">CSV: <code>id,numero,admin,nome</code> — numero sem @s.whatsapp.net, admin = superadmin/admin/membro</div>
+          <div className="text-xs text-gray-600">CSV: <code>id,numero,admin,nome</code></div>
         </div>
       )}
     </div>
