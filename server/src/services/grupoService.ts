@@ -82,15 +82,17 @@ export async function extrairParticipantesComNome(groupId: string): Promise<Part
     buscarTodosContatos(),
   ]);
   const mapa = new Map(contatos.map(c => [c.id, c]));
-  return participantes.map(p => {
-    const c = mapa.get(p.id);
+  return participantes.map((p: any) => {
+    const pid = String(p?.id || p?.jid || p?.phone || "");
+    if (!pid) return { id: "", numero: "", admin: "membro", nome: null } as ParticipanteFinal;
+    const c = mapa.get(pid);
     return {
-      id: p.id,
-      numero: p.id.split("@")[0],
-      admin: p.admin || "membro",
+      id: pid,
+      numero: pid.split("@")[0],
+      admin: p.admin || p.rank || "membro",
       nome: c?.notify || c?.verifiedName || null,
     };
-  });
+  }).filter(r => !!r.id);
 }
 
 // 4. CSV
