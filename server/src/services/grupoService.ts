@@ -112,10 +112,10 @@ async function buscarInfoGrupo(groupId: string): Promise<string | null> {
   const instanceId = getInstanceId();
   if (!instanceId) return null;
   try {
-    const url = `${BASE_URL}/v1/group/get-group?instanceId=${encodeURIComponent(instanceId)}&groupId=${encodeURIComponent(groupId)}`;
+    const url = `${BASE_URL}/v1/group/get-group-info?instanceId=${encodeURIComponent(instanceId)}&groupId=${encodeURIComponent(groupId)}`;
     const res = await axios.get(url, { headers: getHeaders(), timeout: 15000 });
     const data: any = res.data;
-    return data.subject || data.name || data.groupName || null;
+    return data.subject || data.name || data.groupName || data.data?.subject || null;
   } catch {
     return null;
   }
@@ -138,12 +138,12 @@ export async function listarGrupos(): Promise<any[]> {
       const chats: any[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
       for (const c of chats) {
         if (c.id && String(c.id).includes("@g.us")) {
-          let nome = c.name || c.subject || c.groupName || null;
-          // Se o nome veio igual ao ID, tenta buscar o nome real
-          if (!nome || nome === c.id) {
-            nome = await buscarInfoGrupo(String(c.id));
-          }
-          grupos.push({ id: c.id, subject: nome || c.id, name: nome, size: c.participantsCount });
+          grupos.push({
+            id: c.id,
+            subject: c.name || c.subject || c.groupName || c.pushName || c.formattedName || c.id,
+            name: c.name || c.subject || c.groupName || null,
+            size: c.participantsCount,
+          });
         }
       }
       totalPages = Number(data.totalPages) || 1;
@@ -152,6 +152,24 @@ export async function listarGrupos(): Promise<any[]> {
       else break;
       if (page > 10) break;
     } while (page <= totalPages);
+
+    // Para grupos sem nome, busca o nome via get-group-info (máx 20 por vez, com limite de concorrência)
+    const semNome = grupos.filter(g => !g.name || g.name === g.id);
+    if (semNome.length > 0 && semNome.length <= 30) {
+      const LOTE = 5;
+      for (let i = 0; i < semNome.length; i += LOTE) {
+        const lote = semNome.slice(i, i + LOTE);
+        const nomes = await Promise.all(lote.map(g => buscarInfoGrupo(g.id)));
+        lote.forEach((g, idx) => {
+          if (nomes[idx]) {
+            g.subject = nomes[idx];
+            g.name = nomes[idx];
+          }
+        });
+        if (i + LOTE < semNome.length) await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
     return grupos;
   } catch (e: any) {
     const status = e.response?.status;
