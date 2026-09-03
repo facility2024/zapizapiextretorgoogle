@@ -4,7 +4,7 @@ const TOKEN_KEY = "zapizapi_token";
 
 const api = axios.create({
   baseURL: "/api",
-  timeout: 120000,
+  timeout: 300000,
 });
 
 // Adiciona o token em todas as requisições

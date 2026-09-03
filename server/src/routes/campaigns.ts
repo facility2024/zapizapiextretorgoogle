@@ -38,97 +38,110 @@ router.get("/:id", async (req, res) => {
 
 // POST /api/campaigns — cria campanha
 router.post("/", async (req, res) => {
-  const {
-    nome,
-    tipoDisparo,
-    textoMensagem,
-    imagemUrl,
-    imagensUrls,
-    audioUrl,
-    variavelFallback,
-    contatoIds,
-    agendarPara,
-    delayEntreMsgMin,
-    delayEntreMsgMax,
-    delayImagemTexto,
-    limitePorHora,
-    limitePorDia,
-  } = req.body;
-
-  if (!nome || !tipoDisparo || !textoMensagem) {
-    res.status(400).json({ error: "nome, tipoDisparo e textoMensagem são obrigatórios" });
-    return;
-  }
-
-  // Valida spintax
-  const validacao = validarSpintax(textoMensagem);
-  if (!validacao.valido) {
-    res.status(400).json({ error: `Spintax inválido: ${validacao.erro}` });
-    return;
-  }
-
-  const campanha = await prisma.campanha.create({
-    data: {
+  try {
+    const {
       nome,
       tipoDisparo,
       textoMensagem,
-      imagemUrl:
-        imagemUrl ||
-        (imagensUrls
-          ? (() => {
-              try {
-                const arr = JSON.parse(imagensUrls);
-                return Array.isArray(arr) ? (arr[0] ?? null) : null;
-              } catch {
-                return null;
-              }
-            })()
-          : null),
-      imagensUrls: imagensUrls || null,
-      audioUrl: audioUrl || null,
-      variavelFallback: variavelFallback || null,
-      // agendarPara é interpretado como horário de Brasília (UTC-3) e salvo em UTC
-      agendarPara: agendarPara ? parseBrasilia(String(agendarPara)) : null,
-      status: agendarPara ? "agendada" : "rascunho",
-      delayEntreMsgMin: delayEntreMsgMin || 20,
-      delayEntreMsgMax: delayEntreMsgMax || 40,
-      delayImagemTexto: delayImagemTexto || 4,
-      limitePorHora: limitePorHora || null,
-      limitePorDia: limitePorDia || null,
-      totalContatos: contatoIds?.length || 0,
-    },
-  });
+      imagemUrl,
+      imagensUrls,
+      audioUrl,
+      variavelFallback,
+      contatoIds,
+      agendarPara,
+      delayEntreMsgMin,
+      delayEntreMsgMax,
+      delayImagemTexto,
+      limitePorHora,
+      limitePorDia,
+    } = req.body;
 
-  // Vincula contatos
-  if (contatoIds && contatoIds.length > 0) {
-    await prisma.campanhaContato.createMany({
-      data: contatoIds.map((contatoId: string) => ({
-        campanhaId: campanha.id,
-        contatoId,
-        status: "pendente",
-      })),
+    if (!nome || !tipoDisparo || !textoMensagem) {
+      res.status(400).json({ error: "nome, tipoDisparo e textoMensagem são obrigatórios" });
+      return;
+    }
+
+    // Valida spintax
+    const validacao = validarSpintax(textoMensagem);
+    if (!validacao.valido) {
+      res.status(400).json({ error: `Spintax inválido: ${validacao.erro}` });
+      return;
+    }
+
+    const campanha = await prisma.campanha.create({
+      data: {
+        nome,
+        tipoDisparo,
+        textoMensagem,
+        imagemUrl:
+          imagemUrl ||
+          (imagensUrls
+            ? (() => {
+                try {
+                  const arr = JSON.parse(imagensUrls);
+                  return Array.isArray(arr) ? (arr[0] ?? null) : null;
+                } catch {
+                  return null;
+                }
+              })()
+            : null),
+        imagensUrls: imagensUrls || null,
+        audioUrl: audioUrl || null,
+        variavelFallback: variavelFallback || null,
+        // agendarPara é interpretado como horário de Brasília (UTC-3) e salvo em UTC
+        agendarPara: agendarPara ? parseBrasilia(String(agendarPara)) : null,
+        status: agendarPara ? "agendada" : "rascunho",
+        delayEntreMsgMin: delayEntreMsgMin || 20,
+        delayEntreMsgMax: delayEntreMsgMax || 40,
+        delayImagemTexto: delayImagemTexto || 4,
+        limitePorHora: limitePorHora || null,
+        limitePorDia: limitePorDia || null,
+        totalContatos: contatoIds?.length || 0,
+      },
     });
-  }
 
-  res.json(campanha);
+    // Vincula contatos (remove duplicatas)
+    if (contatoIds && contatoIds.length > 0) {
+      const unicos = [...new Set(contatoIds)];
+      await prisma.campanhaContato.createMany({
+        data: unicos.map((contatoId: string) => ({
+          campanhaId: campanha.id,
+          contatoId,
+          status: "pendente",
+        })),
+      });
+    }
+
+    res.json(campanha);
+  } catch (err: unknown) {
+    console.error("[CAMPANHA] Erro ao criar:", err);
+    const msg = err instanceof Error ? err.message : "Erro desconhecido ao criar campanha";
+    res.status(500).json({ error: msg });
+  }
 });
 
 // POST /api/campaigns/:id/start — inicia disparo
 router.post("/:id/start", async (req, res) => {
-  const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });
-  if (!campanha) {
-    res.status(404).json({ error: "Campanha não encontrada" });
-    return;
-  }
-  if (campanha.status !== "rascunho" && campanha.status !== "pausada" && campanha.status !== "agendada") {
-    res.status(400).json({ error: `Não é possível iniciar campanha com status "${campanha.status}"` });
-    return;
-  }
+  try {
+    const campanha = await prisma.campanha.findUnique({ where: { id: req.params.id } });
+    if (!campanha) {
+      res.status(404).json({ error: "Campanha não encontrada" });
+      return;
+    }
+    if (campanha.status !== "rascunho" && campanha.status !== "pausada" && campanha.status !== "agendada") {
+      res.status(400).json({ error: `Não é possível iniciar campanha com status "${campanha.status}"` });
+      return;
+    }
 
-  await queue.enfileirarCampanha(campanha.id);
-  queue.processarFila(campanha.id).catch((e) => console.error("[FILA] Erro:", e));
+    await queue.enfileirarCampanha(campanha.id);
+    queue.processarFila(campanha.id).catch((e) => console.error("[FILA] Erro:", e));
 
-  res.json({ message: "Campanha iniciada", status: "em_andamento" });
+    res.json({ message: "Campanha iniciada", status: "em_andamento" });
+  } catch (err: unknown) {
+    console.error("[CAMPANHA] Erro ao iniciar:", err);
+    const msg = err instanceof Error ? err.message : "Erro ao iniciar campanha";
+    res.status(500).json({ error: msg });
+  }
 });
 
 // POST /api/campaigns/:id/pause — pausa campanha
