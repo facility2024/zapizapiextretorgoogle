@@ -37,7 +37,7 @@ export default function Grupos() {
         id: g.id || g.groupId || g.jid || "",
         subject: g.subject || g.name || g.groupName || g.id,
         size: g.size || g.participantsCount,
-      })).filter(g => g.id.includes("@g.us"));
+      })).filter(g => g.id.includes("@g.us") && g.subject !== g.id);
       setGrupos(norm);
       if (norm.length === 0) setError("Nenhum grupo encontrado. Verifique se o WhatsApp da instância PRO (FD2A1Q) está conectado e participa de grupos. Clique em Recarregar.");
     } catch (e: any) {
