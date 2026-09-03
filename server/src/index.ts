@@ -44,10 +44,10 @@ app.use(express.urlencoded({ extended: true }));
 // Webhook W-API — público (W-API chama sem token)
 app.use("/api/webhook", webhookRoutes);
 
-// Autenticação: protege todas as rotas /api exceto login, health e webhook
+// Autenticação: protege todas as rotas /api exceto login, health, webhook e debug
 app.use("/api", (req, res, next) => {
   if (req.method === "OPTIONS") return next();
-  if (req.path === "/auth/login" || req.path === "/health" || req.path.startsWith("/webhook")) return next();
+  if (req.path === "/auth/login" || req.path === "/health" || req.path.startsWith("/webhook") || req.path === "/wapi/debug") return next();
   const auth = req.headers.authorization;
   const token = auth && auth.startsWith("Bearer ") ? auth.slice(7) : null;
   const email = token ? verificarToken(token) : null;
