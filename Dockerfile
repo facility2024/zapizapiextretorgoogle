@@ -38,5 +38,6 @@ RUN npm run build
 
 EXPOSE 3001
 
-# Sobe o servidor (API + frontend na mesma porta). O db push já roda no build.
-CMD ["sh", "-c", "cd server && npm start"]
+# Sobe o servidor (API + frontend na mesma porta).
+# Antes de subir, roda prisma db push para criar/atualizar as tabelas no banco.
+CMD ["sh", "-c", "cd server && npx prisma db push && npm start"]

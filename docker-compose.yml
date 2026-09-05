@@ -6,8 +6,10 @@ services:
     environment:
       - WAPI_INSTANCE_ID=${WAPI_INSTANCE_ID}
       - WAPI_TOKEN=${WAPI_TOKEN}
-      - WAPI_BASE_URL=${WAPI_BASE_URL:-https://api.wapi.chat}
-      - DATABASE_URL=file:/app/data/dev.db
+      - WAPI_BASE_URL=${WAPI_BASE_URL:-https://api.w-api.app}
+      # Para Supabase/Postgres, aponte DATABASE_URL="{{ string do pooler :6543 }}" no .env
+      # ex: postgresql://postgres.xxxx:[SENHA]@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
+      - DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db}
       - PORT=3001
     volumes:
       - db-data:/app/data
