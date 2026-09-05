@@ -39,5 +39,7 @@ RUN npm run build
 EXPOSE 3001
 
 # Sobe o servidor (API + frontend na mesma porta).
-# Antes de subir, roda prisma db push para criar/atualizar as tabelas no banco.
-CMD ["sh", "-c", "cd server && npx prisma db push && npm start"]
+# As tabelas NÃO são criadas aqui: rode server/supabase.sql no SQL Editor do
+# Supabase (ou npx prisma db push manualmente) antes. O pooler do Supabase
+# falha no db push do boot, causando crash-loop.
+CMD ["sh", "-c", "cd server && npm start"]
