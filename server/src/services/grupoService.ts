@@ -87,11 +87,52 @@ function determinarPerfil(p: any): string {
   return "membro";
 }
 
+// Normaliza id do participante para comparar entre fontes (só a parte numérica do JID).
+function chaveNum(pid: string): string {
+  return String(pid).split("@")[0].replace(/\D/g, "");
+}
+
+// Busca get-group-info: retorna criador (owner = superadmin) e participantes com isAdmin/isSuperAdmin.
+// get-Participants nem sempre marca todos os admins; esta é a fonte confiável.
+async function buscarInfoGrupoAdmins(groupId: string): Promise<Map<string, string>> {
+  const instanceId = getInstanceId();
+  const admins = new Map<string, string>(); // chave numérica -> "superadmin"/"admin"
+  try {
+    const url = `${BASE_URL}/v1/group/get-group-info?instanceId=${encodeURIComponent(instanceId)}&groupId=${encodeURIComponent(groupId)}`;
+    const res = await axios.get(url, { headers: getHeaders(), timeout: 20000 });
+    const d: any = res.data;
+    const info = d?.data && typeof d.data === "object" ? d.data : d;
+    const ow = typeof info?.owner === "object" ? info.owner?._serialized || info.owner?.user : info?.owner;
+    if (ow) {
+      const key = chaveNum(ow);
+      if (key) admins.set(key, "superadmin");
+    }
+    const participantes: any[] = Array.isArray(info?.participants)
+      ? info.participants
+      : typeof info?.participants === "object" && info.participants
+        ? Object.values(info.participants)
+        : [];
+    for (const p of participantes) {
+      const rawId = typeof p?.id === "object" ? p.id?._serialized || p.id?.user : p?.id;
+      const key = chaveNum(rawId);
+      if (!key) continue;
+      if (p.isSuperAdmin === true || p.isSuperAdmin === "true") admins.set(key, "superadmin");
+      else if (p.isAdmin === true || p.isAdmin === "true") {
+        if (!admins.has(key)) admins.set(key, "admin");
+      }
+    }
+  } catch {
+    // Não é fatal: segue usando só o get-Participants.
+  }
+  return admins;
+}
+
 // 3. Cruzar participantes + contatos
 export async function extrairParticipantesComNome(groupId: string): Promise<ParticipanteFinal[]> {
-  const [participantes, contatos] = await Promise.all([
+  const [participantes, contatos, adminsGrupo] = await Promise.all([
     buscarParticipantes(groupId),
     buscarTodosContatos(),
+    buscarInfoGrupoAdmins(groupId),
   ]);
   const mapa = new Map(contatos.map(c => [c.id, c]));
   return participantes.map((p: any) => {
@@ -101,7 +142,7 @@ export async function extrairParticipantesComNome(groupId: string): Promise<Part
     return {
       id: pid,
       numero: pid.split("@")[0],
-      admin: determinarPerfil(p),
+      admin: adminsGrupo.get(chaveNum(pid)) || determinarPerfil(p),
       nome: c?.notify || c?.verifiedName || null,
     };
   }).filter(r => !!r.id);
