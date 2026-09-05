@@ -74,45 +74,45 @@ export default function Grupos() {
     setLoading(true); setError(null); setDados([]); setListaLimpa([]);
     try {
       const { data } = await api.get("/grupos/participantes", { params: { groupId: id }, timeout: 60000 });
-      setDados(data.participantes || []);
+      const participantes = data.participantes || [];
+      setDados(participantes);
       setGroupId(id);
-      if ((data.participantes || []).length === 0) setError("Nenhum participante retornado. Verifique se o ID está correto e a instância está conectada.");
-      setListaLimpa([]);
+      if (participantes.length === 0) setError("Nenhum participante retornado. Verifique se o ID está correto e a instância está conectada.");
+      // Cria a lista já excluindo os admins: números digitados + admins localizados na extração
+      const detectados = participantes.filter(p => p.admin && p.admin !== "membro").map(p => p.numero);
+      filtrarComNumeros(participantes, numerosAdmin.concat(detectados));
     } catch (e: any) {
       setError(e.response?.data?.error || e.message || "Erro ao buscar participantes");
       setListaLimpa([]);
     } finally { setLoading(false); }
   }
 
-  function filtrarAdmins() {
-    const adminsNormalizados = numerosAdmin.map(normalizarParaComparacao);
-    const novaLista = dados.filter(p => {
+  function filtrarComNumeros(lista: Participante[], numeros: string[]) {
+    const adminsNormalizados = numeros.map(normalizarParaComparacao).filter(Boolean);
+    const novaLista = lista.filter(p => {
       const numNormalizado = normalizarParaComparacao(p.numero);
       return !adminsNormalizados.some(admin => numNormalizado.includes(admin));
     });
-    setAdminRemovidos(dados.length - novaLista.length);
+    setAdminRemovidos(lista.length - novaLista.length);
     setListaLimpa(novaLista);
   }
 
-  // Localiza os admins automaticamente na extração (W-API retorna o perfil em p.admin)
-  // e já os usa como "números de admin" para filtrar a lista.
+  function filtrarAdmins() {
+    filtrarComNumeros(dados, numerosAdmin);
+  }
+
+  // Localiza os admins na extração (W-API retorna o perfil em p.admin),
+// preenche o campo e já refaz a lista limpa excluindo-os.
   function localizarAdmins() {
     const adminsDetectados = dados.filter(p => p.admin && p.admin !== "membro");
     if (adminsDetectados.length === 0) {
       setError("Nenhum admin detectado na extração. Digite os números manualmente acima.");
       return;
     }
-    const novos = adminsDetectados.map(p => p.numero);
-    const atualizados = Array.from(new Set([...numerosAdmin, ...novos]));
+    const atualizados = Array.from(new Set([...numerosAdmin, ...adminsDetectados.map(p => p.numero)]));
     setNumerosAdmin(atualizados);
     localStorage.setItem("grupoAdminNumeros", JSON.stringify(atualizados));
-    const adminsNormalizados = atualizados.map(normalizarParaComparacao);
-    const novaLista = dados.filter(p => {
-      const numNormalizado = normalizarParaComparacao(p.numero);
-      return !adminsNormalizados.some(admin => numNormalizado.includes(admin));
-    });
-    setAdminRemovidos(dados.length - novaLista.length);
-    setListaLimpa(novaLista);
+    filtrarComNumeros(dados, atualizados);
   }
 
   function baixarCSV() {
@@ -262,7 +262,7 @@ export default function Grupos() {
 
           {dados.length === 0 && (
             <div className="bg-bg-primary/30 border border-gray-800 rounded-xl p-3 text-xs text-gray-500">
-              Extraia um grupo acima para localizar automaticamente os admins e remover da lista limpa.
+              Digite os números de admin acima e extraia o grupo — a lista limpa já sai com os admins excluídos (digitados + localizados automaticamente).
             </div>
           )}
 
