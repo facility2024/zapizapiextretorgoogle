@@ -76,6 +76,17 @@ export async function buscarTodosContatos(): Promise<ContatoRaw[]> {
   return todos;
 }
 
+// Detecta o perfil do participante na resposta da W-API.
+// Alvos comuns do get-Participants: isSuperAdmin/isAdmin (boolean), p.admin/p.rank/p.role (string).
+function determinarPerfil(p: any): string {
+  if (p.isSuperAdmin === true || p.isSuperAdmin === "true") return "superadmin";
+  if (p.isAdmin === true || p.isAdmin === "true") return "admin";
+  const role = String(p.admin || p.rank || p.role || p.adminLevel || "").toLowerCase();
+  if (role.includes("super")) return "superadmin";
+  if (role && role !== "membro" && role !== "member" && role !== "0" && role !== "false" && role !== "undefined") return "admin";
+  return "membro";
+}
+
 // 3. Cruzar participantes + contatos
 export async function extrairParticipantesComNome(groupId: string): Promise<ParticipanteFinal[]> {
   const [participantes, contatos] = await Promise.all([
@@ -90,7 +101,7 @@ export async function extrairParticipantesComNome(groupId: string): Promise<Part
     return {
       id: pid,
       numero: pid.split("@")[0],
-      admin: p.admin || p.rank || "membro",
+      admin: determinarPerfil(p),
       nome: c?.notify || c?.verifiedName || null,
     };
   }).filter(r => !!r.id);
