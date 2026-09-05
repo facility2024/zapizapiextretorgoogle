@@ -253,10 +253,18 @@ export default function Grupos() {
           </div>
           <div className="text-xs text-gray-600">CSV: <code>id,numero,admin,nome</code></div>
         </div>
+        </>
+      )}
 
-        {/* --- Seção: Administrador do Grupo --- */}
+      {/* --- Seção: Administrador do Grupo --- */}
         <div className="bg-bg-card border border-gray-800 rounded-xl p-6 space-y-4">
           <h3 className="font-semibold text-sm text-accent mb-4">Administrador do Grupo</h3>
+
+          {dados.length === 0 && (
+            <div className="bg-bg-primary/30 border border-gray-800 rounded-xl p-3 text-xs text-gray-500">
+              Extraia um grupo acima para localizar automaticamente os admins e remover da lista limpa.
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -390,8 +398,6 @@ export default function Grupos() {
           )}
         </div>
         {/* --- Fim seção Administrador do Grupo --- */}
-        </>
-      )}
     </div>
   );
 }
