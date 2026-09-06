@@ -11,6 +11,7 @@ import {
   X,
   Settings,
   Users,
+  MessageSquareText,
 } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
@@ -105,6 +106,15 @@ function SidebarContent({
             onClick={onNavigate}
           />
         ))}
+        <a
+          href="https://sms.agenciafacility.com.br/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-bg-card hover:text-white transition-all"
+        >
+          <span className="w-4 h-4 flex items-center justify-center"><MessageSquareText className="w-4 h-4" /></span>
+          <span className="relative z-10">Me Chamado SMS</span>
+        </a>
       </div>
 
       <button
