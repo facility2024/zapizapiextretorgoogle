@@ -1,41 +1,50 @@
 import { Router } from "express";
-import { buscarParticipantes, buscarTodosContatos, extrairParticipantesComNome, paraCSV, paraExcel, listarGrupos } from "../services/grupoService.js";
+import { extrairParticipantesComNome, paraCSV, paraExcel, listarGrupos } from "../services/grupoService.js";
+import { getCredenciaisUsuario } from "./userInstances.js";
 
 const router = Router();
 
+// Helper: busca credenciais W-API do usuário logado
+async function getCred(usuarioId: string) {
+  const cred = await getCredenciaisUsuario(usuarioId);
+  if (!cred) throw new Error("Instância W-API não configurada. Vá em Configurações e salve suas credenciais.");
+  return cred;
+}
+
 // GET /api/grupos -> listar grupos da instância
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const grupos = await listarGrupos();
+    const cred = await getCred(req.usuarioId);
+    const grupos = await listarGrupos(cred);
     res.json({ grupos });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// GET /api/grupos/participantes?groupId=1203...@g.us -> JSON com participantes + nomes
+// GET /api/grupos/participantes?groupId=... -> JSON com participantes
 router.get("/participantes", async (req, res) => {
   try {
     const groupId = String(req.query.groupId || "").trim();
-    if (!groupId) { res.status(400).json({ error: "groupId é obrigatório. Formato: 1203...@g.us" }); return; }
-    const dados = await extrairParticipantesComNome(groupId);
+    if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
+    const cred = await getCred(req.usuarioId);
+    const dados = await extrairParticipantesComNome(groupId, cred);
     res.json({ total: dados.length, groupId, participantes: dados });
   } catch (e: any) {
     const msg = e.message || "Erro desconhecido";
-    const status = msg.includes("WAPI_TOKEN") || msg.includes("WAPI_INSTANCE_ID") ? 500 : msg.includes("Token inválido") || msg.includes("Invalid token") ? 401 : 500;
-    // erros comuns: token inválido, grupo inexistente, instância desconectada
-    if (msg.includes("not found") || msg.includes("inexistente")) res.status(404).json({ error: msg });
-    else res.status(status).json({ error: msg });
+    const status = msg.includes("não configurada") ? 400 : 500;
+    res.status(status).json({ error: msg });
   }
 });
 
-// GET /api/grupos/export?groupId=...&semPrefixo=true -> CSV download
+// GET /api/grupos/export?groupId=...&semPrefixo=true -> CSV
 router.get("/export", async (req, res) => {
   try {
     const groupId = String(req.query.groupId || "").trim();
     if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
     const semPrefixo = req.query.semPrefixo === "true";
-    const dados = await extrairParticipantesComNome(groupId);
+    const cred = await getCred(req.usuarioId);
+    const dados = await extrairParticipantesComNome(groupId, cred);
     const csv = paraCSV(dados, semPrefixo);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.csv"`);
@@ -45,13 +54,14 @@ router.get("/export", async (req, res) => {
   }
 });
 
-// GET /api/grupos/export-excel?groupId=...&semPrefixo=true -> Excel download
+// GET /api/grupos/export-excel?groupId=...&semPrefixo=true -> Excel
 router.get("/export-excel", async (req, res) => {
   try {
     const groupId = String(req.query.groupId || "").trim();
     if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
     const semPrefixo = req.query.semPrefixo === "true";
-    const dados = await extrairParticipantesComNome(groupId);
+    const cred = await getCred(req.usuarioId);
+    const dados = await extrairParticipantesComNome(groupId, cred);
     const buffer = paraExcel(dados, semPrefixo);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.xlsx"`);
@@ -59,16 +69,6 @@ router.get("/export-excel", async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
-});
-
-// Para debug: buscar só participantes crus ou só contatos
-router.get("/raw-participantes", async (req, res) => {
-  try {
-    const groupId = String(req.query.groupId || "").trim();
-    if (!groupId) { res.status(400).json({ error: "groupId obrigatório" }); return; }
-    const p = await buscarParticipantes(groupId);
-    res.json({ total: p.length, participantes: p });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 export default router;
