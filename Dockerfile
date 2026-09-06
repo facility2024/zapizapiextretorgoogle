@@ -15,7 +15,7 @@ ARG PORT
 ENV WAPI_INSTANCE_ID=$WAPI_INSTANCE_ID
 ENV WAPI_TOKEN=$WAPI_TOKEN
 ENV WAPI_BASE_URL=${WAPI_BASE_URL:-https://api.w-api.app}
-ENV DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db}
+ENV DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db?statement_cache_size=0}
 ENV PORT=${PORT:-3001}
 
 # Garante os diretórios de banco e uploads
