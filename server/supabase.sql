@@ -1,126 +1,154 @@
 -- ============================================================
--- Zapizapi — schema para Supabase (PostgreSQL)
--- Execute este script no SQL Editor do Supabase:
---   https://app.supabase.com -> projeto -> SQL -> New query -> colar e Run
--- O app se conecta via Prisma usando a DATABASE_URL do Supabase.
+-- ZAPIZAPI — SQL para Supabase (Postgres)
+-- Execute no SQL Editor do Supabase antes de subir o server
 -- ============================================================
 
--- Garante geração de UUID (já habilitado por padrão no Supabase)
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- ─── EXTENSÕES ──────────────────────────────────────────────
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Tabela: Contato
+-- ─── USUÁRIOS ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "Usuario" (
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "email" TEXT NOT NULL UNIQUE,
+  "senha" TEXT NOT NULL,
+  "nome" TEXT,
+  "whatsapp" TEXT,
+  "role" TEXT NOT NULL DEFAULT 'user',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
+);
+
+-- ─── LICENÇAS ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "Licenca" (
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "usuarioId" TEXT NOT NULL REFERENCES "Usuario"("id") ON DELETE CASCADE,
+  "dataInicio" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  "dataExpiracao" TIMESTAMP(3) NOT NULL,
+  "ativo" BOOLEAN NOT NULL DEFAULT true,
+  "criadoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS "Licenca_usuarioId_idx" ON "Licenca"("usuarioId");
+
+-- ─── INSTÂNCIAS W-API POR USUÁRIO ──────────────────────────
+CREATE TABLE IF NOT EXISTS "UserInstance" (
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "usuarioId" TEXT NOT NULL UNIQUE REFERENCES "Usuario"("id") ON DELETE CASCADE,
+  "wapiInstanceId" TEXT NOT NULL,
+  "wapiToken" TEXT NOT NULL,
+  "wapiApiKey" TEXT,
+  "wapiBaseUrl" TEXT NOT NULL DEFAULT 'https://api.w-api.app',
+  "conectado" BOOLEAN NOT NULL DEFAULT false,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
+);
+
+-- ─── CONTATOS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Contato" (
-  "id" text NOT NULL,
-  "numero" text NOT NULL,
-  "nome" text,
-  "empresa" text,
-  "cidade" text,
-  "extras" text NOT NULL DEFAULT '{}',
-  "createdAt" timestamp(3) NOT NULL DEFAULT now(),
-  CONSTRAINT "Contato_pkey" PRIMARY KEY ("id")
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
+  "numero" TEXT NOT NULL,
+  "nome" TEXT,
+  "empresa" TEXT,
+  "cidade" TEXT,
+  "extras" TEXT DEFAULT '{}',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  UNIQUE ("usuarioId", "numero")
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "Contato_numero_key" ON "Contato"("numero");
 
--- Tabela: Campanha
+-- ─── CAMPANHAS ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Campanha" (
-  "id" text NOT NULL,
-  "nome" text NOT NULL,
-  "tipoDisparo" text NOT NULL,
-  "textoMensagem" text NOT NULL,
-  "imagemUrl" text,
-  "audioUrl" text,
-  "variavelFallback" text,
-  "status" text NOT NULL DEFAULT 'rascunho',
-  "agendarPara" timestamp(3),
-  "totalContatos" integer NOT NULL DEFAULT 0,
-  "enviados" integer NOT NULL DEFAULT 0,
-  "erros" integer NOT NULL DEFAULT 0,
-  "delayEntreMsgMin" integer NOT NULL DEFAULT 20,
-  "delayEntreMsgMax" integer NOT NULL DEFAULT 40,
-  "delayImagemTexto" integer NOT NULL DEFAULT 4,
-  "limitePorHora" integer,
-  "limitePorDia" integer,
-  "createdAt" timestamp(3) NOT NULL DEFAULT now(),
-  "updatedAt" timestamp(3) NOT NULL DEFAULT now(),
-  CONSTRAINT "Campanha_pkey" PRIMARY KEY ("id")
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
+  "nome" TEXT NOT NULL,
+  "tipoDisparo" TEXT NOT NULL,
+  "textoMensagem" TEXT NOT NULL,
+  "imagemUrl" TEXT,
+  "imagensUrls" TEXT,
+  "audioUrl" TEXT,
+  "variavelFallback" TEXT,
+  "status" TEXT NOT NULL DEFAULT 'rascunho',
+  "agendarPara" TIMESTAMP(3),
+  "totalContatos" INTEGER NOT NULL DEFAULT 0,
+  "enviados" INTEGER NOT NULL DEFAULT 0,
+  "erros" INTEGER NOT NULL DEFAULT 0,
+  "delayEntreMsgMin" INTEGER NOT NULL DEFAULT 20,
+  "delayEntreMsgMax" INTEGER NOT NULL DEFAULT 40,
+  "delayImagemTexto" INTEGER NOT NULL DEFAULT 4,
+  "limitePorHora" INTEGER,
+  "limitePorDia" INTEGER,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- Tabela: CampanhaContato (liga campanhas e contatos)
+-- ─── CAMPANHA CONTATO ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "CampanhaContato" (
-  "id" text NOT NULL,
-  "campanhaId" text NOT NULL,
-  "contatoId" text NOT NULL,
-  "status" text NOT NULL DEFAULT 'pendente',
-  "errorMsg" text,
-  "createdAt" timestamp(3) NOT NULL DEFAULT now(),
-  "enviadoEm" timestamp(3),
-  CONSTRAINT "CampanhaContato_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "CampanhaContato_campanhaId_contatoId_key" UNIQUE ("campanhaId", "contatoId"),
-  CONSTRAINT "CampanhaContato_campanhaId_fkey" FOREIGN KEY ("campanhaId") REFERENCES "Campanha"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "CampanhaContato_contatoId_fkey" FOREIGN KEY ("contatoId") REFERENCES "Contato"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "campanhaId" TEXT NOT NULL REFERENCES "Campanha"("id") ON DELETE CASCADE,
+  "contatoId" TEXT NOT NULL REFERENCES "Contato"("id") ON DELETE CASCADE,
+  "status" TEXT NOT NULL DEFAULT 'pendente',
+  "errorMsg" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+  "enviadoEm" TIMESTAMP(3),
+  UNIQUE ("campanhaId", "contatoId")
 );
-CREATE INDEX IF NOT EXISTS "CampanhaContato_campanhaId_idx" ON "CampanhaContato"("campanhaId");
-CREATE INDEX IF NOT EXISTS "CampanhaContato_contatoId_idx" ON "CampanhaContato"("contatoId");
 
--- Tabela: Envio (histórico de envios)
+-- ─── ENVIOS ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Envio" (
-  "id" text NOT NULL,
-  "campanhaId" text NOT NULL,
-  "contatoId" text NOT NULL,
-  "tipo" text NOT NULL,
-  "status" text NOT NULL,
-  "response" text,
-  "errorMsg" text,
-  "enviadoEm" timestamp(3) NOT NULL DEFAULT now(),
-  CONSTRAINT "Envio_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "Envio_campanhaId_fkey" FOREIGN KEY ("campanhaId") REFERENCES "Campanha"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "campanhaId" TEXT NOT NULL REFERENCES "Campanha"("id") ON DELETE CASCADE,
+  "contatoId" TEXT NOT NULL,
+  "tipo" TEXT NOT NULL,
+  "status" TEXT NOT NULL,
+  "response" TEXT,
+  "errorMsg" TEXT,
+  "enviadoEm" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS "Envio_campanhaId_idx" ON "Envio"("campanhaId");
-CREATE INDEX IF NOT EXISTS "Envio_contatoId_idx" ON "Envio"("contatoId");
 
--- Tabela: ConfiguracaoDelay (configurações de delay)
+-- ─── CONFIGURAÇÃO DELAY ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "ConfiguracaoDelay" (
-  "id" text NOT NULL,
-  "chave" text NOT NULL,
-  "valor" text NOT NULL,
-  "descricao" text,
-  CONSTRAINT "ConfiguracaoDelay_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "ConfiguracaoDelay_chave_key" UNIQUE ("chave")
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "chave" TEXT NOT NULL UNIQUE,
+  "valor" TEXT NOT NULL,
+  "descricao" TEXT
 );
 
--- Tabela: ApiKey (chaves da RapidAPI do Extrator Google Maps — rotação automática)
+-- ─── API KEYS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "ApiKey" (
-  "id" text NOT NULL,
-  "label" text,
-  "key" text NOT NULL,
-  "ativo" boolean NOT NULL DEFAULT true,
-  "falhas" integer NOT NULL DEFAULT 0,
-  "ultimoErro" text,
-  "ultimoUso" timestamp(3),
-  "createdAt" timestamp(3) NOT NULL DEFAULT now(),
-  CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "ApiKey_key_key" UNIQUE ("key")
+  "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
+  "label" TEXT,
+  "key" TEXT NOT NULL UNIQUE,
+  "ativo" BOOLEAN NOT NULL DEFAULT true,
+  "falhas" INTEGER NOT NULL DEFAULT 0,
+  "ultimoErro" TEXT,
+  "ultimoUso" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS "ApiKey_ativo_idx" ON "ApiKey"("ativo");
 
--- Trigger: mantém "updatedAt" da Campanha atualizado (Prisma também gerencia)
-CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
-BEGIN
-  NEW."updatedAt" = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ─── CRIAR ADMIN PADRÃO ────────────────────────────────────
+-- Senha bcrypt de "123": $2b$10$YQ8GvFOJnNwF.G5pQt5H3OQxJ5J5J5J5J5J5J5J5J5J5J5J5J5J5
+-- (hash real gerado abaixo — rode o server uma vez para criar, ou insira manualmente)
+INSERT INTO "Usuario" ("id", "email", "senha", "nome", "role", "createdAt", "updatedAt")
+VALUES (
+  'admin-001',
+  'otavio@gmail.com',
+  '$2b$10$DvKWwEq/ikRuMPgxV06chO8EWRBicF5QyEdBhumAg0eq3/ebbu2T2',
+  'Admin',
+  'admin',
+  now(),
+  now()
+)
+ON CONFLICT ("email") DO NOTHING;
 
-DROP TRIGGER IF EXISTS "Campanha_updatedAt" ON "Campanha";
-CREATE TRIGGER "Campanha_updatedAt" BEFORE UPDATE ON "Campanha"
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
--- Permissões: o app usa a chave anon (pública) e o RLS das tabelas acima está desligado,
--- então concedemos acesso completo à role anon para o app funcionar via Data API.
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+-- ─── LICENÇA ADMIN (validade 10 anos) ──────────────────────
+INSERT INTO "Licenca" ("id", "usuarioId", "dataInicio", "dataExpiracao", "ativo", "createdAt")
+VALUES (
+  'lic-admin-001',
+  'admin-001',
+  now(),
+  now() + INTERVAL '10 years',
+  true,
+  now()
+)
+ON CONFLICT ("id") DO NOTHING;
