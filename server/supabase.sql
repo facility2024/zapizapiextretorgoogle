@@ -1,12 +1,5 @@
--- ============================================================
--- ZAPIZAPI — SQL para Supabase (Postgres)
--- Execute no SQL Editor do Supabase antes de subir o server
--- ============================================================
-
--- ─── EXTENSÕES ──────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ─── USUÁRIOS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Usuario" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "email" TEXT NOT NULL UNIQUE,
@@ -18,7 +11,6 @@ CREATE TABLE IF NOT EXISTS "Usuario" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- ─── LICENÇAS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Licenca" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "usuarioId" TEXT NOT NULL REFERENCES "Usuario"("id") ON DELETE CASCADE,
@@ -30,7 +22,6 @@ CREATE TABLE IF NOT EXISTS "Licenca" (
 );
 CREATE INDEX IF NOT EXISTS "Licenca_usuarioId_idx" ON "Licenca"("usuarioId");
 
--- ─── INSTÂNCIAS W-API POR USUÁRIO ──────────────────────────
 CREATE TABLE IF NOT EXISTS "UserInstance" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "usuarioId" TEXT NOT NULL UNIQUE REFERENCES "Usuario"("id") ON DELETE CASCADE,
@@ -43,7 +34,6 @@ CREATE TABLE IF NOT EXISTS "UserInstance" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- ─── CONTATOS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Contato" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
@@ -56,7 +46,6 @@ CREATE TABLE IF NOT EXISTS "Contato" (
   UNIQUE ("usuarioId", "numero")
 );
 
--- ─── CAMPANHAS ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Campanha" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
@@ -81,7 +70,6 @@ CREATE TABLE IF NOT EXISTS "Campanha" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- ─── CAMPANHA CONTATO ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "CampanhaContato" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "campanhaId" TEXT NOT NULL REFERENCES "Campanha"("id") ON DELETE CASCADE,
@@ -93,7 +81,6 @@ CREATE TABLE IF NOT EXISTS "CampanhaContato" (
   UNIQUE ("campanhaId", "contatoId")
 );
 
--- ─── ENVIOS ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "Envio" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "campanhaId" TEXT NOT NULL REFERENCES "Campanha"("id") ON DELETE CASCADE,
@@ -105,7 +92,6 @@ CREATE TABLE IF NOT EXISTS "Envio" (
   "enviadoEm" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- ─── CONFIGURAÇÃO DELAY ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "ConfiguracaoDelay" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "chave" TEXT NOT NULL UNIQUE,
@@ -113,7 +99,6 @@ CREATE TABLE IF NOT EXISTS "ConfiguracaoDelay" (
   "descricao" TEXT
 );
 
--- ─── API KEYS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "ApiKey" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "usuarioId" TEXT REFERENCES "Usuario"("id") ON DELETE CASCADE,
@@ -126,9 +111,6 @@ CREATE TABLE IF NOT EXISTS "ApiKey" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now()
 );
 
--- ─── CRIAR ADMIN PADRÃO ────────────────────────────────────
--- Senha bcrypt de "123": $2b$10$YQ8GvFOJnNwF.G5pQt5H3OQxJ5J5J5J5J5J5J5J5J5J5J5J5J5J5
--- (hash real gerado abaixo — rode o server uma vez para criar, ou insira manualmente)
 INSERT INTO "Usuario" ("id", "email", "senha", "nome", "role", "createdAt", "updatedAt")
 VALUES (
   'admin-001',
@@ -141,7 +123,6 @@ VALUES (
 )
 ON CONFLICT ("email") DO NOTHING;
 
--- ─── LICENÇA ADMIN (validade 10 anos) ──────────────────────
 INSERT INTO "Licenca" ("id", "usuarioId", "dataInicio", "dataExpiracao", "ativo", "createdAt")
 VALUES (
   'lic-admin-001',
