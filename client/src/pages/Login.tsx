@@ -2,6 +2,12 @@ import { useState, FormEvent } from "react";
 import { MessageSquare, Loader2 } from "lucide-react";
 import api, { TOKEN_STORAGE_KEY } from "../api";
 
+interface LoginResponse {
+  token: string;
+  usuario: { id: string; email: string; nome: string | null; role: string };
+  licenca?: { dataExpiracao: string; ativo: boolean } | null;
+}
+
 export default function Login({ onAuthed }: { onAuthed: (token: string) => void }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -13,8 +19,12 @@ export default function Login({ onAuthed }: { onAuthed: (token: string) => void 
     setErro("");
     setCarregando(true);
     try {
-      const { data } = await api.post<{ token: string }>("/auth/login", { email, senha });
+      const { data } = await api.post<LoginResponse>("/auth/login", { email, senha });
       localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+      localStorage.setItem("zapizapi_user", JSON.stringify(data.usuario));
+      if (data.licenca) {
+        localStorage.setItem("zapizapi_licenca", JSON.stringify(data.licenca));
+      }
       onAuthed(data.token);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };

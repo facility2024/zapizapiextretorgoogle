@@ -7,47 +7,101 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── USUÁRIOS E LICENCIAMENTO ───────────────────────────────
+
+model Usuario {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  senha          String    // bcrypt hash
+  nome           String?
+  whatsapp       String?   // telefone do usuário (opcional)
+  role           String    @default("user") // "admin" | "user"
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  licencas       Licenca[]
+  instancias     UserInstance[]
+  campanhas      Campanha[]
+  contatos       Contato[]
+  apiKeys        ApiKey[]
+}
+
+model Licenca {
+  id             String   @id @default(uuid())
+  usuarioId      String
+  dataInicio     DateTime @default(now())
+  dataExpiracao  DateTime
+  ativo          Boolean  @default(true)
+  criadoPor      String?  // ID do admin que criou
+  createdAt      DateTime @default(now())
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+}
+
+model UserInstance {
+  id             String   @id @default(uuid())
+  usuarioId      String
+  wapiInstanceId String
+  wapiToken      String
+  wapiApiKey     String?
+  wapiBaseUrl    String   @default("https://api.w-api.app")
+  conectado      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId])
+}
+
+// ─── MODELOS EXISTENTES (com usuarioId) ─────────────────────
+
 model Contato {
   id        String   @id @default(uuid())
-  numero    String   @unique
+  usuarioId String?  // null = legado (sem dono)
+  numero    String
   nome      String?
   empresa   String?
   cidade    String?
-  extras    String?  @default("{}") // JSON com colunas extras da planilha
+  extras    String?  @default("{}")
   createdAt DateTime @default(now())
   campanhas CampanhaContato[]
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, numero])
 }
 
 model Campanha {
   id                 String            @id @default(uuid())
+  usuarioId          String?
   nome               String
-  tipoDisparo        String            // "texto", "imagem_texto", "audio"
+  tipoDisparo        String
   textoMensagem      String
   imagemUrl          String?
-  imagensUrls        String?  // JSON array (até 4 URLs) para disparo tipo imagem_texto
+  imagensUrls        String?
   audioUrl           String?
-  variavelFallback   String?           // fallback para variáveis vazias (ex: "tudo bem?")
-  status             String            @default("rascunho") // rascunho, agendada, em_andamento, pausada, concluida, cancelada
+  variavelFallback   String?
+  status             String            @default("rascunho")
   agendarPara        DateTime?
   totalContatos      Int               @default(0)
   enviados           Int               @default(0)
   erros              Int               @default(0)
-  delayEntreMsgMin   Int               @default(20) // segundos mínimo
-  delayEntreMsgMax   Int               @default(40) // segundos máximo
-  delayImagemTexto   Int               @default(4)  // segundos entre imagem e texto
-  limitePorHora      Int?              // limite de envios por hora
-  limitePorDia       Int?              // limite de envios por dia
+  delayEntreMsgMin   Int               @default(20)
+  delayEntreMsgMax   Int               @default(40)
+  delayImagemTexto   Int               @default(4)
+  limitePorHora      Int?
+  limitePorDia       Int?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   contatos           CampanhaContato[]
   envios             Envio[]
+  usuario            Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 }
 
 model CampanhaContato {
   id         String   @id @default(uuid())
   campanhaId String
   contatoId  String
-  status     String   @default("pendente") // pendente, enviando, enviado, erro
+  status     String   @default("pendente")
   errorMsg   String?
   createdAt  DateTime @default(now())
   enviadoEm  DateTime?
@@ -61,9 +115,9 @@ model Envio {
   id         String   @id @default(uuid())
   campanhaId String
   contatoId  String
-  tipo       String   // "texto", "imagem", "audio"
-  status     String   // "enviado", "erro", "pendente"
-  response   String?  // resposta da W-API
+  tipo       String
+  status     String
+  response   String?
   errorMsg   String?
   enviadoEm  DateTime @default(now())
   campanha   Campanha @relation(fields: [campanhaId], references: [id])
@@ -78,11 +132,13 @@ model ConfiguracaoDelay {
 
 model ApiKey {
   id          String   @id @default(uuid())
-  label       String? // nome amigável (ex: "Conta 1")
-  key         String   @unique // chave da RapidAPI
+  usuarioId   String?  // null = global/legado
+  label       String?
+  key         String   @unique
   ativo       Boolean  @default(true)
   falhas      Int      @default(0)
   ultimoErro  String?
   ultimoUso   DateTime?
   createdAt   DateTime @default(now())
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 }

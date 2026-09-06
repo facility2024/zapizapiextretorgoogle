@@ -1,6 +1,6 @@
 /**
  * index.ts
- * Servidor principal do Zapizapi
+ * Servidor principal do Zapizapi — multi-tenant
  */
 
 import "dotenv/config";
@@ -19,8 +19,10 @@ import configRoutes from "./routes/config.js";
 import authRoutes from "./routes/auth.js";
 import gruposRoutes from "./routes/grupos.js";
 import webhookRoutes from "./routes/webhook.js";
+import adminRoutes from "./routes/admin.js";
+import userInstancesRoutes from "./routes/userInstances.js";
 import { onStatusUpdate } from "./services/queue.js";
-import { verificarToken } from "./services/auth.js";
+import { verificarToken, usuarioAtivo, isAdmin } from "./services/auth.js";
 import { iniciarScheduler } from "./services/scheduler.js";
 import { registerExtractorSocket } from "./socket/extractorSocket.js";
 import { prisma } from "./db.js";
@@ -44,31 +46,73 @@ app.use(express.urlencoded({ extended: true }));
 // Webhook W-API — público (W-API chama sem token)
 app.use("/api/webhook", webhookRoutes);
 
-// Autenticação: protege todas as rotas /api exceto login, health, webhook e debug
+// Autenticação: protege todas as rotas /api exceto login, health, webhook, debug e register
 app.use("/api", (req, res, next) => {
   if (req.method === "OPTIONS") return next();
-  if (req.path === "/auth/login" || req.path === "/health" || req.path.startsWith("/webhook") || req.path === "/wapi/debug") return next();
+  const publicPaths = ["/auth/login", "/auth/register", "/health"];
+  if (publicPaths.includes(req.path) || req.path.startsWith("/webhook") || req.path === "/wapi/debug") {
+    return next();
+  }
+
   const auth = req.headers.authorization;
   const token = auth && auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  const email = token ? verificarToken(token) : null;
-  if (!email) {
+  const tokenData = token ? verificarToken(token) : null;
+
+  if (!tokenData) {
     res.status(401).json({ error: "Não autenticado" });
     return;
   }
+
+  // Anexa dados do usuário ao request para uso nas rotas
+  (req as any).usuarioId = tokenData.uid;
+  (req as any).usuarioEmail = tokenData.email;
+  (req as any).usuarioRole = tokenData.role;
+
   next();
 });
+
+// Middleware de admin: verifica se é admin
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if ((req as any).usuarioRole !== "admin") {
+    res.status(403).json({ error: "Acesso restrito a administradores" });
+    return;
+  }
+  next();
+}
+
+// Middleware de licença ativa: verifica se o usuário tem licença válida
+async function requireLicenca(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const role = (req as any).usuarioRole;
+  // Admin não precisa de licença
+  if (role === "admin") return next();
+
+  const ativo = await usuarioAtivo((req as any).usuarioId);
+  if (!ativo) {
+    res.status(403).json({ error: "Licença expirada ou inativa. Entre em contato com o administrador." });
+    return;
+  }
+  next();
+}
 
 // Arquivos estáticos (uploads)
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
-// Rotas
-app.use("/api/wapi", wapiRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/campaigns", campaignRoutes);
-app.use("/api/extractor", extractorRoutes);
-app.use("/api/config", configRoutes);
+// ─── Rotas públicas ─────────────────────────────────────────
 app.use("/api/auth", authRoutes);
-app.use("/api/grupos", gruposRoutes);
+
+// ─── Rotas admin (só admin) ─────────────────────────────────
+app.use("/api/admin", requireAdmin, adminRoutes);
+
+// ─── Rotas de instância do usuário ──────────────────────────
+app.use("/api/instances", requireLicenca, userInstancesRoutes);
+
+// ─── Rotas do sistema (precisam licença) ────────────────────
+app.use("/api/wapi", requireLicenca, wapiRoutes);
+app.use("/api/upload", requireLicenca, uploadRoutes);
+app.use("/api/campaigns", requireLicenca, campaignRoutes);
+app.use("/api/extractor", requireLicenca, extractorRoutes);
+app.use("/api/config", requireLicenca, configRoutes);
+app.use("/api/grupos", requireLicenca, gruposRoutes);
 
 // Frontend (produção): serve o build do client e SPA fallback
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");

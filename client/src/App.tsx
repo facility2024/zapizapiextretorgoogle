@@ -12,6 +12,7 @@ import {
   Settings,
   Users,
   MessageSquareText,
+  Shield,
 } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Conectar from "./pages/Conectar";
@@ -20,6 +21,7 @@ import Historico from "./pages/Historico";
 import ExtratorGoogle from "./pages/ExtratorGoogle";
 import Configuracoes from "./pages/Configuracoes";
 import Grupos from "./pages/Grupos";
+import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import { TOKEN_STORAGE_KEY } from "./api";
 
@@ -34,9 +36,25 @@ type NavItemProps = {
   icon?: ReactNode;
   img?: string;
   onClick?: () => void;
+  external?: boolean;
+  href?: string;
 };
 
-function NavItem({ to, label, icon, img, onClick }: NavItemProps) {
+function NavItem({ to, label, icon, img, onClick, external, href }: NavItemProps) {
+  if (external && href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-bg-card hover:text-white transition-all"
+      >
+        <span className="w-4 h-4 flex items-center justify-center">{icon}</span>
+        <span className="relative z-10">{label}</span>
+      </a>
+    );
+  }
+
   return (
     <NavLink
       to={to}
@@ -66,15 +84,21 @@ function NavItem({ to, label, icon, img, onClick }: NavItemProps) {
   );
 }
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { to: "/conectar", label: "Conectar", icon: <Link2 className="w-4 h-4" /> },
-  { to: "/nova-campanha", label: "Nova Campanha", img: ICON_NOVA_CAMPANHA },
-  { to: "/grupos", label: "Grupos WhatsApp", icon: <Users className="w-4 h-4" /> },
-  { to: "/historico", label: "Histórico", icon: <History className="w-4 h-4" /> },
-  { to: "/extrator-maps", label: "Extrator Maps", img: ICON_GOOGLE_MAPS },
-  { to: "/configuracoes", label: "Configurações", icon: <Settings className="w-4 h-4" /> },
-];
+function getUserRole(): string | null {
+  try {
+    const raw = localStorage.getItem("zapizapi_user");
+    if (!raw) return null;
+    return JSON.parse(raw).role || null;
+  } catch { return null; }
+}
+
+function getUserName(): string | null {
+  try {
+    const raw = localStorage.getItem("zapizapi_user");
+    if (!raw) return null;
+    return JSON.parse(raw).nome || JSON.parse(raw).email || null;
+  } catch { return null; }
+}
 
 function SidebarContent({
   onLogout,
@@ -83,6 +107,21 @@ function SidebarContent({
   onLogout: () => void;
   onNavigate?: () => void;
 }) {
+  const role = getUserRole();
+  const nome = getUserName();
+  const isAdminUser = role === "admin";
+
+  const NAV_ITEMS = [
+    { to: "/", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { to: "/conectar", label: "Conectar", icon: <Link2 className="w-4 h-4" /> },
+    { to: "/nova-campanha", label: "Nova Campanha", img: ICON_NOVA_CAMPANHA },
+    { to: "/grupos", label: "Grupos WhatsApp", icon: <Users className="w-4 h-4" /> },
+    { to: "/historico", label: "Histórico", icon: <History className="w-4 h-4" /> },
+    { to: "/extrator-maps", label: "Extrator Maps", img: ICON_GOOGLE_MAPS },
+    { to: "/configuracoes", label: "Configurações", icon: <Settings className="w-4 h-4" /> },
+    ...(isAdminUser ? [{ to: "/admin", label: "Painel Admin", icon: <Shield className="w-4 h-4" /> }] : []),
+  ];
+
   return (
     <>
       <div className="flex items-center gap-3 mb-10 px-2">
@@ -91,7 +130,7 @@ function SidebarContent({
         </div>
         <div>
           <h1 className="text-lg font-bold text-white">Zapizapi</h1>
-          <p className="text-xs text-gray-500">Meus Envios</p>
+          <p className="text-xs text-gray-500">{nome || "Meus Envios"}</p>
         </div>
       </div>
 
@@ -106,15 +145,13 @@ function SidebarContent({
             onClick={onNavigate}
           />
         ))}
-        <a
+        <NavItem
+          to=""
+          label="Me Chamado SMS"
+          icon={<MessageSquareText className="w-4 h-4" />}
+          external
           href="https://sms.agenciafacility.com.br/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-bg-card hover:text-white transition-all"
-        >
-          <span className="w-4 h-4 flex items-center justify-center"><MessageSquareText className="w-4 h-4" /></span>
-          <span className="relative z-10">Me Chamado SMS</span>
-        </a>
+        />
       </div>
 
       <button
@@ -147,6 +184,8 @@ function App() {
 
   function logout() {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem("zapizapi_user");
+    localStorage.removeItem("zapizapi_licenca");
     setToken(null);
   }
 
@@ -204,6 +243,7 @@ function App() {
           <Route path="/historico" element={<Historico />} />
           <Route path="/extrator-maps" element={<ExtratorGoogle />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </main>
     </div>
