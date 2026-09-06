@@ -52,7 +52,7 @@ export default function Grupos() {
         size: g.size || g.participantsCount,
       })).filter(g => g.id.includes("@g.us") && g.subject !== g.id);
       setGrupos(norm);
-      if (norm.length === 0) setError("Nenhum grupo encontrado. Verifique se o WhatsApp da instância PRO (FD2A1Q) está conectado e participa de grupos. Clique em Recarregar.");
+      if (norm.length === 0) setError("Nenhum grupo encontrado. Verifique se o WhatsApp da instância está conectado e participa de grupos. Clique em Recarregar.");
     } catch (e: any) {
       setError(e.response?.data?.error || "Falha ao carregar lista de grupos. Verifique se a instância PRO está Online.");
     } finally { setLoadingGrupos(false); }
@@ -231,7 +231,7 @@ export default function Grupos() {
           </>
         ) : (
           <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 p-3 rounded-xl text-sm">
-            Nenhum grupo listado. Isso acontece quando a instância está <b>desconectada</b> ou ainda é <b>LITE</b>. Confirme que o Easypanel está com <code>FD2A1Q-ZMM3LU-NFLZW0</code> (PRO) e status <b>Online</b> no Dashboard, depois clique em Recarregar.
+            Nenhum grupo listado. Isso acontece quando a instância está <b>desconectada</b> ou ainda é <b>LITE</b>. Confirme que o Easypanel está com a instância PRO e status <b>Online</b> no Dashboard, depois clique em Recarregar.
           </div>
         )}
 

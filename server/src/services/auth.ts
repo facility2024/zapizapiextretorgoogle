@@ -7,13 +7,12 @@ import crypto from "crypto";
 
 // SECRET aleatório por boot quando não definido no .env (impede forjar token).
 const SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
-const EMAIL_PADRAO = process.env.AUTH_EMAIL || "otavio@gmail.com";
-const SENHA_PADRAO = process.env.AUTH_SENHA || "123";
+const EMAIL_PADRAO = process.env.AUTH_EMAIL || "";
+const SENHA_PADRAO = process.env.AUTH_SENHA || "";
 
 if (!process.env.AUTH_EMAIL || !process.env.AUTH_SENHA) {
   console.warn(
-    "[AUTH] Usando credenciais padrão (otavio@gmail.com / 123). " +
-      "Defina AUTH_EMAIL e AUTH_SENHA no .env para produção."
+    "[AUTH] AUTH_EMAIL e AUTH_SENHA não definidos no .env — login desabilitado até configurar."
   );
 }
 

@@ -1,6 +1,6 @@
 /**
  * webhook.ts
- * Endpoints públicos para W-API (Configurar Webhook da instância FD2A1Q-ZMM3LU-NFLZW0).
+ * Endpoints públicos para W-API (Configurar Webhook da instância no painel W-API).
  * Não exigem auth — W-API chama direto. Auth é bypassado em index.ts para /api/webhook.
  */
 import { Router } from "express";
