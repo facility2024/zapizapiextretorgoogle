@@ -38,6 +38,7 @@ export default function Grupos() {
   });
   const [adminRemovidos, setAdminRemovidos] = useState<number>(0);
   const [listaLimpa, setListaLimpa] = useState<Participante[]>([]);
+  const [baixando, setBaixando] = useState(false);
 
   async function carregarGrupos() {
     setLoadingGrupos(true);
@@ -115,11 +116,18 @@ export default function Grupos() {
     filtrarComNumeros(dados, atualizados);
   }
 
-  function baixarCSV() {
-    if (!groupId.trim() || dados.length === 0) return;
+  function getExportId(): string | null {
+    if (!groupId.trim() || dados.length === 0) return null;
     let id = groupId.trim();
     const conv = extrairIdDeLink(id);
     if (conv) id = conv;
+    return id;
+  }
+
+  function baixarCSV() {
+    const id = getExportId();
+    if (!id) return;
+    setBaixando(true);
     api.get("/grupos/export", { params: { groupId: id }, responseType: "blob", timeout: 60000 }).then(res => {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -129,14 +137,13 @@ export default function Grupos() {
       const blob = e.response?.data;
       if (blob instanceof Blob) blob.text().then(t => { try { const j = JSON.parse(t); setError(j.error || t); } catch { setError(t); } });
       else setError(e.response?.data?.error || e.message || "Erro ao exportar CSV");
-    });
+    }).finally(() => setBaixando(false));
   }
 
   function baixarExcel() {
-    if (!groupId.trim() || dados.length === 0) return;
-    let id = groupId.trim();
-    const conv = extrairIdDeLink(id);
-    if (conv) id = conv;
+    const id = getExportId();
+    if (!id) return;
+    setBaixando(true);
     api.get("/grupos/export-excel", { params: { groupId: id }, responseType: "blob", timeout: 60000 }).then(res => {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -146,14 +153,13 @@ export default function Grupos() {
       const blob = e.response?.data;
       if (blob instanceof Blob) blob.text().then(t => { try { const j = JSON.parse(t); setError(j.error || t); } catch { setError(t); } });
       else setError(e.response?.data?.error || e.message || "Erro ao exportar Excel");
-    });
+    }).finally(() => setBaixando(false));
   }
 
   function baixarCSVSemPrefixo() {
-    if (!groupId.trim() || dados.length === 0) return;
-    let id = groupId.trim();
-    const conv = extrairIdDeLink(id);
-    if (conv) id = conv;
+    const id = getExportId();
+    if (!id) return;
+    setBaixando(true);
     api.get("/grupos/export", { params: { groupId: id, semPrefixo: "true" }, responseType: "blob", timeout: 60000 }).then(res => {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -161,14 +167,13 @@ export default function Grupos() {
       URL.revokeObjectURL(url);
     }).catch((e: any) => {
       setError(e.response?.data?.error || e.message || "Erro ao exportar CSV");
-    });
+    }).finally(() => setBaixando(false));
   }
 
   function baixarExcelSemPrefixo() {
-    if (!groupId.trim() || dados.length === 0) return;
-    let id = groupId.trim();
-    const conv = extrairIdDeLink(id);
-    if (conv) id = conv;
+    const id = getExportId();
+    if (!id) return;
+    setBaixando(true);
     api.get("/grupos/export-excel", { params: { groupId: id, semPrefixo: "true" }, responseType: "blob", timeout: 60000 }).then(res => {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -176,7 +181,7 @@ export default function Grupos() {
       URL.revokeObjectURL(url);
     }).catch((e: any) => {
       setError(e.response?.data?.error || e.message || "Erro ao exportar Excel");
-    });
+    }).finally(() => setBaixando(false));
   }
 
   return (
@@ -255,18 +260,18 @@ export default function Grupos() {
         <div className="bg-bg-card border border-gray-800 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">{dados.length} participantes</h2>
-            <div className="flex gap-2">
-              <button onClick={baixarCSV} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
-                <Download className="w-4 h-4" /> Baixar CSV
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={baixarCSV} disabled={baixando} className="px-4 py-2 bg-accent hover:bg-accent-light disabled:opacity-50 rounded-xl text-sm font-medium flex items-center gap-2">
+                {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar CSV
               </button>
-              <button onClick={baixarExcel} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4" /> Baixar Excel
+              <button onClick={baixarExcel} disabled={baixando} className="px-4 py-2 bg-accent hover:bg-accent-light disabled:opacity-50 rounded-xl text-sm font-medium flex items-center gap-2">
+                {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Baixar Excel
               </button>
-              <button onClick={baixarCSVSemPrefixo} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium flex items-center gap-2">
-                <Download className="w-4 h-4" /> CSV sem 55
+              <button onClick={baixarCSVSemPrefixo} disabled={baixando} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-xl text-sm font-medium flex items-center gap-2">
+                {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} CSV sem 55
               </button>
-              <button onClick={baixarExcelSemPrefixo} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4" /> Excel sem 55
+              <button onClick={baixarExcelSemPrefixo} disabled={baixando} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-xl text-sm font-medium flex items-center gap-2">
+                {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel sem 55
               </button>
             </div>
           </div>
