@@ -148,21 +148,39 @@ export async function extrairParticipantesComNome(groupId: string): Promise<Part
   }).filter(r => !!r.id);
 }
 
-// 4. CSV
-export function paraCSV(dados: ParticipanteFinal[]): string {
+// 4. Normaliza número: remove prefixo 55 e insere 9 após DDD quando ausente (celular 8 dígitos → 9)
+export function normalizarNumeroExport(raw: string): string {
+  let num = raw.replace(/\D/g, "");
+  // Remove prefixo 55 (DDI Brasil)
+  if (num.startsWith("55") && num.length >= 12) num = num.slice(2);
+  // Se tem 10 dígitos (DDD 2 + número 8), falta o 9 — insere após o DDD
+  if (num.length === 10 && /^\d{2}/.test(num)) {
+    num = num.slice(0, 2) + "9" + num.slice(2);
+  }
+  return num;
+}
+
+// 4b. CSV
+export function paraCSV(dados: ParticipanteFinal[], semPrefixo = false): string {
   const esc = (v: string | null) => {
     if (v == null) return "";
     const s = String(v);
     if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
-  const linhas = ["id,numero,admin,nome", ...dados.map(r => `${esc(r.id)},${esc(r.numero)},${esc(r.admin)},${esc(r.nome)}`)];
+  const linhas = ["id,numero,admin,nome", ...dados.map(r => {
+    const num = semPrefixo ? normalizarNumeroExport(r.numero) : r.numero;
+    return `${esc(r.id)},${esc(num)},${esc(r.admin)},${esc(r.nome)}`;
+  })];
   return linhas.join("\n");
 }
 
 // 5. Excel
-export function paraExcel(dados: ParticipanteFinal[]): Buffer {
-  const rows = dados.map(r => ({ ID: r.id, Numero: r.numero, Admin: r.admin, Nome: r.nome || "" }));
+export function paraExcel(dados: ParticipanteFinal[], semPrefixo = false): Buffer {
+  const rows = dados.map(r => {
+    const num = semPrefixo ? normalizarNumeroExport(r.numero) : r.numero;
+    return { ID: r.id, Numero: num, Admin: r.admin, Nome: r.nome || "" };
+  });
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = [{ wch: 22 }, { wch: 15 }, { wch: 12 }, { wch: 30 }];
   const wb = XLSX.utils.book_new();

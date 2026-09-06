@@ -149,6 +149,36 @@ export default function Grupos() {
     });
   }
 
+  function baixarCSVSemPrefixo() {
+    if (!groupId.trim() || dados.length === 0) return;
+    let id = groupId.trim();
+    const conv = extrairIdDeLink(id);
+    if (conv) id = conv;
+    api.get("/grupos/export", { params: { groupId: id, semPrefixo: "true" }, responseType: "blob", timeout: 60000 }).then(res => {
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = `numeros_${id.split("@")[0]}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }).catch((e: any) => {
+      setError(e.response?.data?.error || e.message || "Erro ao exportar CSV");
+    });
+  }
+
+  function baixarExcelSemPrefixo() {
+    if (!groupId.trim() || dados.length === 0) return;
+    let id = groupId.trim();
+    const conv = extrairIdDeLink(id);
+    if (conv) id = conv;
+    api.get("/grupos/export-excel", { params: { groupId: id, semPrefixo: "true" }, responseType: "blob", timeout: 60000 }).then(res => {
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = `numeros_${id.split("@")[0]}.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+    }).catch((e: any) => {
+      setError(e.response?.data?.error || e.message || "Erro ao exportar Excel");
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -231,6 +261,12 @@ export default function Grupos() {
               </button>
               <button onClick={baixarExcel} className="px-4 py-2 bg-accent hover:bg-accent-light rounded-xl text-sm font-medium flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4" /> Baixar Excel
+              </button>
+              <button onClick={baixarCSVSemPrefixo} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium flex items-center gap-2">
+                <Download className="w-4 h-4" /> CSV sem 55
+              </button>
+              <button onClick={baixarExcelSemPrefixo} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4" /> Excel sem 55
               </button>
             </div>
           </div>
@@ -361,18 +397,22 @@ export default function Grupos() {
 
           {/* Ações da lista limpa */}
           {dados.length > 0 && (
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex gap-3 flex-wrap">
               <button
                 onClick={() => {
+                  if (listaLimpa.length === 0) return;
                   const csvContent = "id,numero,admin,nome\n" +
                     listaLimpa.map(p => `${p.id},${p.numero},${p.admin},${p.nome || ""}`).join("\n");
-                  navigator.clipboard.writeText(csvContent);
+                  navigator.clipboard.writeText(csvContent).then(() => {
+                    alert("Lista copiada para a área de transferência!");
+                  });
                 }}
                 className="px-4 py-2 bg-bg-primary border border-gray-700 rounded-xl text-sm hover:bg-gray-800 flex items-center gap-2">
                 <Download className="w-4 h-4" /> Copiar lista limpa
               </button>
               <button
                 onClick={() => {
+                  if (listaLimpa.length === 0) return;
                   const csvContent = "id,numero,admin,nome\n" +
                     listaLimpa.map(p => `${p.id},${p.numero},${p.admin},${p.nome || ""}`).join("\n");
                   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -388,11 +428,24 @@ export default function Grupos() {
               </button>
               <button
                 onClick={() => {
-                  // TODO: integrar com sistema de campanha existente
-                  alert("Funcionalidade 'Usar na Nova Campanha' - integrar com rotas de campanha do sistema");
+                  if (listaLimpa.length === 0) return;
+                  const csvContent = "id,numero,admin,nome\n" +
+                    listaLimpa.map(p => {
+                      let num = p.numero.replace(/\D/g, "");
+                      if (num.startsWith("55") && num.length >= 12) num = num.slice(2);
+                      if (num.length === 10 && /^\d{2}/.test(num)) num = num.slice(0, 2) + "9" + num.slice(2);
+                      return `${p.id},${num},${p.admin},${p.nome || ""}`;
+                    }).join("\n");
+                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `numeros_sem_admins_${groupId.split("@")[0]}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
                 }}
-                className="px-4 py-2 bg-accent-light hover:bg-accent rounded-xl text-sm font-medium flex items-center gap-2">
-                <Link2 className="w-4 h-4" /> Usar na Nova Campanha
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4" /> Baixar .csv (sem 55)
               </button>
             </div>
           )}

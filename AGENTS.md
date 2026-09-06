@@ -28,7 +28,7 @@ Não há `npm test`, lint ou format — não procure esses comandos.
 Copie `server/.env.example` → `server/.env`:
 - `WAPI_INSTANCE_ID`, `WAPI_TOKEN` — instância W-API
 - `WAPI_API_KEY` — chave da CONTA `w-api.app` (diferente do token); usada em `POST /v1/client/create-instance` para auto-provisionar (`server/src/services/wapiClient.ts:156`)
-- `WAPI_BASE_URL` — padrão `https://api.w-api.app` (ver `wapiClient.ts:16` e `.env.example`); `docker-compose.yml` traz default errado `https://api.wapi.chat`
+- `WAPI_BASE_URL` — padrão `https://api.w-api.app` (ver `wapiClient.ts:16` e `.env.example`)
 - `DATABASE_URL` — **Postgres/Supabase** (provider `postgresql` em `server/prisma/schema.prisma:6`); string do pooler Supabase porta 6543 (ex. no `.env.example`). O `file:./dev.db` legado ainda existe em `server/prisma/dev.db` mas não é mais usado
 - `GEOAPIFY_KEY` — única fonte do extrator (`server/src/services/geoapifyScraper.ts`); chaves extras podem ser salvas no banco (`ApiKey`) via UI Config e há rotação automática (`configStore.ts`)
 - `AUTH_EMAIL` / `AUTH_SENHA` / `AUTH_SECRET` — auth HMAC (`server/src/services/auth.ts:9`); default `otavio@gmail.com` / `123` se não definidos; tokens expiram em 7 dias. **Sem `AUTH_SECRET` no `.env`, o secret é aleatório por boot** — todos os tokens/sessões morrem a cada restart do server
@@ -59,4 +59,4 @@ Nunca commite `.env` (está no `.gitignore`).
 - Planilha precisa coluna de número; aliases na importação: `numero`, `telefone`, `whatsapp`, `phone`, `celular`, `número`, `num` (`excelParser.ts:25`). **Atenção**: `messageParser.ts:22` tem aliases menores (`nome`, `numero`, `empresa`, `cidade`) — se a planilha usar `celular` ou `número` como nome de coluna, a variável extra ficará no JSON `extras` em vez de mapear para `numero` automaticamente.
 - `db:seed` aponta para `prisma/seed.ts` inexistente — não use (`server/package.json:11`).
 - `docker-compose.yml:9` default `WAPI_BASE_URL` está errado (`wapi.chat`); correto é `w-api.app`.
-- `Dockerfile:36` só roda `prisma generate`, **não** `prisma db push` (comentário na linha 41 está errado); sem `db push` as tabelas não existem em runtime. No deploy, garanta `npx prisma db push` no step de build ou manual no container; `DATABASE_URL=file:/app/data/dev.db` só vale para SQLite legado — para Postgres/Supabase troque a URL e monte volumes apenas em `/app/data` e `/app/server/uploads` (nunca o `/app/server` inteiro).
+- `Dockerfile:36` só roda `prisma generate`, **não** `prisma db push`; sem `db push` as tabelas não existem em runtime. No deploy, rode `npx prisma db push` manualmente no container ou via SQL Editor do Supabase antes de subir (o pooler do Supabase falha no db push do boot, causando crash-loop). `DATABASE_URL=file:/app/data/dev.db` só vale para SQLite legado — para Postgres/Supabase troque a URL.

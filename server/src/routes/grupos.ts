@@ -29,13 +29,14 @@ router.get("/participantes", async (req, res) => {
   }
 });
 
-// GET /api/grupos/export?groupId=... -> CSV download
+// GET /api/grupos/export?groupId=...&semPrefixo=true -> CSV download
 router.get("/export", async (req, res) => {
   try {
     const groupId = String(req.query.groupId || "").trim();
     if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
+    const semPrefixo = req.query.semPrefixo === "true";
     const dados = await extrairParticipantesComNome(groupId);
-    const csv = paraCSV(dados);
+    const csv = paraCSV(dados, semPrefixo);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.csv"`);
     res.send(csv);
@@ -44,13 +45,14 @@ router.get("/export", async (req, res) => {
   }
 });
 
-// GET /api/grupos/export-excel?groupId=... -> Excel download
+// GET /api/grupos/export-excel?groupId=...&semPrefixo=true -> Excel download
 router.get("/export-excel", async (req, res) => {
   try {
     const groupId = String(req.query.groupId || "").trim();
     if (!groupId) { res.status(400).json({ error: "groupId é obrigatório" }); return; }
+    const semPrefixo = req.query.semPrefixo === "true";
     const dados = await extrairParticipantesComNome(groupId);
-    const buffer = paraExcel(dados);
+    const buffer = paraExcel(dados, semPrefixo);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="participantes_${groupId.split("@")[0]}.xlsx"`);
     res.send(buffer);
