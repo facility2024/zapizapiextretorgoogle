@@ -43,7 +43,7 @@ Nunca commite `.env` (está no `.gitignore`).
 - **Scheduler**: `server/src/services/scheduler.ts:11` — poll a cada 30s por `Campanha` com `status=agendada` e `agendarPara <= now`; marca `em_andamento` antes de enfileirar para evitar duplo disparo.
 - **WebSocket**: `socket.io` emite `campaign-update` (`queue.ts:43` registra callback via `onStatusUpdate` em `index.ts:94`); extrator usa `socket/extractorSocket.ts`.
 - **Proxy dev**: Vite `server.proxy` encaminha `/api` e `/uploads` para `localhost:3001` (`client/vite.config.ts:39`).
-- **Auth**: middleware em `index.ts:48` protege TODAS as rotas `/api` (Bearer token HMAC); exceções públicas: `/api/webhook`, `/api/auth/login`, `/api/health`, `/api/wapi/debug`. Rota nova no `/api` já nasce protegida — inclua na allowlist se for pública.
+- **Auth**: middleware em `index.ts:50` protege TODAS as rotas `/api` (Bearer token HMAC); exceções públicas: `/api/webhook`, `/api/auth/login`, `/api/auth/register`, `/api/health`, `/api/wapi/debug`. Rota nova no `/api` já nasce protegida — inclua na allowlist se for pública.
 - **Deploy = 1 serviço**: `Dockerfile` builda client (`npx prisma generate` + `npm run build`) e sobe `tsx src/index.ts` na `PORT`. Express serve `client/dist` com fallback SPA (`index.ts:76`).
 
 ## Convenções
