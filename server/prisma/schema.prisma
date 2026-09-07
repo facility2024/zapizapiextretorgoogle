@@ -45,6 +45,7 @@ model UserInstance {
   wapiToken      String
   wapiApiKey     String?
   wapiBaseUrl    String   @default("https://api.w-api.app")
+  geoapifyKeys   String?  // chaves Geoapify separadas por vírgula
   conectado      Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

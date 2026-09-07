@@ -21,17 +21,12 @@ export default function Configuracoes() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/config/geoapify");
-        setKeys(data.keys || "");
-      } catch (err: any) {
-        setErro("Erro ao carregar chaves: " + (err.response?.data?.error || err.message));
-      }
-      try {
         const { data } = await api.get("/instances/minha-instancia");
         if (data.instancia) {
           setWapiInstanceId(data.instancia.wapiInstanceId || "");
           setWapiBaseUrl(data.instancia.wapiBaseUrl || "https://api.w-api.app");
           setWapiConectado(data.instancia.conectado || false);
+          setKeys(data.instancia.geoapifyKeys || "");
         }
       } catch { /* ignora */ }
     })();
@@ -40,8 +35,8 @@ export default function Configuracoes() {
   async function salvarGeoapify() {
     setLoading(true); setMsg(""); setErro("");
     try {
-      const { data } = await api.post("/config/geoapify", { keys });
-      setMsg(`${data.total} chave(s) Geoapify salva(s) com sucesso.`);
+      const { data } = await api.post("/instances/minha-instancia", { geoapifyKeys: keys });
+      setMsg("Chaves Geoapify salvas com sucesso!");
     } catch (err: any) {
       setErro(err.response?.data?.error || err.message || "Erro ao salvar");
     } finally { setLoading(false); }

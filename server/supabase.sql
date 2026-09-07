@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS "UserInstance" (
   "wapiToken" TEXT NOT NULL,
   "wapiApiKey" TEXT,
   "wapiBaseUrl" TEXT NOT NULL DEFAULT 'https://api.w-api.app',
+  "geoapifyKeys" TEXT,
   "conectado" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT now()

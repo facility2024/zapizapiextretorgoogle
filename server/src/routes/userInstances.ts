@@ -14,7 +14,7 @@ router.get("/minha-instancia", async (req, res) => {
     const instancia = await prisma.userInstance.findUnique({
       where: { usuarioId: req.usuarioId },
       select: {
-        id: true, wapiInstanceId: true, wapiBaseUrl: true, conectado: true, createdAt: true,
+        id: true, wapiInstanceId: true, wapiBaseUrl: true, geoapifyKeys: true, conectado: true, createdAt: true,
         // NÃO retorna wapiToken na resposta por segurança
       },
     });
@@ -27,33 +27,49 @@ router.get("/minha-instancia", async (req, res) => {
 // ─── Salvar/atualizar instância W-API ───────────────────────
 router.post("/minha-instancia", async (req, res) => {
   try {
-    const { wapiInstanceId, wapiToken, wapiApiKey, wapiBaseUrl } = req.body || {};
-    if (!wapiInstanceId || !wapiToken) {
-      res.status(400).json({ error: "wapiInstanceId e wapiToken são obrigatórios" });
-      return;
+    const { wapiInstanceId, wapiToken, wapiApiKey, wapiBaseUrl, geoapifyKeys } = req.body || {};
+
+    const existente = await prisma.userInstance.findUnique({ where: { usuarioId: req.usuarioId } });
+
+    if (existente) {
+      const instancia = await prisma.userInstance.update({
+        where: { usuarioId: req.usuarioId },
+        data: {
+          ...(wapiInstanceId ? { wapiInstanceId } : {}),
+          ...(wapiToken ? { wapiToken } : {}),
+          ...(wapiApiKey !== undefined ? { wapiApiKey: wapiApiKey || null } : {}),
+          ...(wapiBaseUrl ? { wapiBaseUrl } : {}),
+          ...(geoapifyKeys !== undefined ? { geoapifyKeys } : {}),
+        },
+      });
+      res.json({
+        id: instancia.id,
+        wapiInstanceId: instancia.wapiInstanceId,
+        wapiBaseUrl: instancia.wapiBaseUrl,
+        conectado: instancia.conectado,
+      });
+    } else {
+      if (!wapiInstanceId || !wapiToken) {
+        res.status(400).json({ error: "wapiInstanceId e wapiToken são obrigatórios para criar instância" });
+        return;
+      }
+      const instancia = await prisma.userInstance.create({
+        data: {
+          usuarioId: req.usuarioId,
+          wapiInstanceId,
+          wapiToken,
+          wapiApiKey: wapiApiKey || null,
+          wapiBaseUrl: wapiBaseUrl || "https://api.w-api.app",
+          geoapifyKeys: geoapifyKeys || null,
+        },
+      });
+      res.json({
+        id: instancia.id,
+        wapiInstanceId: instancia.wapiInstanceId,
+        wapiBaseUrl: instancia.wapiBaseUrl,
+        conectado: instancia.conectado,
+      });
     }
-    const instancia = await prisma.userInstance.upsert({
-      where: { usuarioId: req.usuarioId },
-      update: {
-        wapiInstanceId,
-        wapiToken,
-        wapiApiKey: wapiApiKey || null,
-        wapiBaseUrl: wapiBaseUrl || "https://api.w-api.app",
-      },
-      create: {
-        usuarioId: req.usuarioId,
-        wapiInstanceId,
-        wapiToken,
-        wapiApiKey: wapiApiKey || null,
-        wapiBaseUrl: wapiBaseUrl || "https://api.w-api.app",
-      },
-    });
-    res.json({
-      id: instancia.id,
-      wapiInstanceId: instancia.wapiInstanceId,
-      wapiBaseUrl: instancia.wapiBaseUrl,
-      conectado: instancia.conectado,
-    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
