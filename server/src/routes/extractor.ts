@@ -35,7 +35,7 @@ router.post("/search", async (req, res) => {
     const limite = Math.min(Number(limit) || 20, 5000);
     const modoNorm: "leads" | "sem_site_whatsapp" | "completo" =
       modo === "completo" ? "completo" : modo === "sem_site_whatsapp" ? "sem_site_whatsapp" : "leads";
-    const resultados = await buscarEmpresasSemSite(query.trim(), limite, modoNorm);
+    const resultados = await buscarEmpresasSemSite(query.trim(), limite, modoNorm, (req as any).usuarioId);
     res.json({ total: resultados.length, resultados });
   } catch (err: any) {
     res.status(502).json({ error: err?.message || "Erro ao consultar a fonte de dados" });

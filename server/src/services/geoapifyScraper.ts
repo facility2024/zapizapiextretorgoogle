@@ -310,9 +310,10 @@ async function buscarPaginado(
 export async function buscarEmpresasSemSite(
   query: string,
   limit = 20,
-  modo: "leads" | "sem_site_whatsapp" | "completo" = "leads"
+  modo: "leads" | "sem_site_whatsapp" | "completo" = "leads",
+  usuarioId?: string,
 ): Promise<Resultado[]> {
-  const keys = await getGeoapifyKeys();
+  const keys = await getGeoapifyKeys(usuarioId);
   if (keys.length === 0) {
     throw new Error(
       "Nenhuma chave Geoapify configurada. Defina GEOAPIFY_KEY no .env ou adicione em Configurações (menu do app)."

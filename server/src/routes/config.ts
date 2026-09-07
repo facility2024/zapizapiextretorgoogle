@@ -9,9 +9,9 @@ import { getGeoapifyKeys, setGeoapifyKeys } from "../services/configStore.js";
 const router = Router();
 
 // GET /api/config/geoapify -> retorna as chaves salvas (uma por linha)
-router.get("/geoapify", async (_req, res) => {
+router.get("/geoapify", async (req, res) => {
   try {
-    const keys = await getGeoapifyKeys();
+    const keys = await getGeoapifyKeys((req as any).usuarioId);
     res.json({ keys: keys.join("\n") });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Erro ao ler chaves" });
@@ -22,7 +22,7 @@ router.get("/geoapify", async (_req, res) => {
 router.post("/geoapify", async (req, res) => {
   const texto = typeof req.body?.keys === "string" ? req.body.keys : "";
   try {
-    const chaves = await setGeoapifyKeys(texto);
+    const chaves = await setGeoapifyKeys(texto, (req as any).usuarioId);
     res.json({ total: chaves.length, keys: chaves.join("\n") });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Erro ao salvar chaves" });
