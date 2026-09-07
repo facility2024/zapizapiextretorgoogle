@@ -29,6 +29,13 @@ import { prisma } from "./db.js";
 
 console.log("[BOOT] Iniciando Zapizapi...");
 
+// Migração automática: adiciona coluna geoapifyKeys se não existir
+prisma.$executeRawUnsafe(`ALTER TABLE "UserInstance" ADD COLUMN IF NOT EXISTS "geoapifyKeys" TEXT`).then(() => {
+  console.log("[BOOT] Coluna geoapifyKeys verificada/criada.");
+}).catch((e) => {
+  console.error("[BOOT] Erro ao criar coluna geoapifyKeys:", e.message);
+});
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);

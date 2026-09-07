@@ -8,10 +8,14 @@ import { prisma } from "../db.js";
 
 export async function getGeoapifyKeys(usuarioId?: string): Promise<string[]> {
   if (usuarioId) {
-    const inst = await prisma.userInstance.findUnique({ where: { usuarioId } });
-    if (inst?.geoapifyKeys) {
-      const keys = inst.geoapifyKeys.split(",").map((k) => k.trim()).filter(Boolean);
-      if (keys.length) return keys;
+    try {
+      const inst = await prisma.userInstance.findUnique({ where: { usuarioId } });
+      if (inst?.geoapifyKeys) {
+        const keys = inst.geoapifyKeys.split(",").map((k) => k.trim()).filter(Boolean);
+        if (keys.length) return keys;
+      }
+    } catch (e: any) {
+      console.error("[configStore] Erro ao ler geoapifyKeys do UserInstance:", e.message);
     }
   }
   return (process.env.GEOAPIFY_KEY || "")
@@ -25,12 +29,15 @@ export async function setGeoapifyKeys(texto: string, usuarioId?: string): Promis
   const valor = chaves.join(",");
 
   if (usuarioId) {
-    // Garante que a UserInstance existe
-    const inst = await prisma.userInstance.findUnique({ where: { usuarioId } });
-    if (inst) {
-      await prisma.userInstance.update({ where: { usuarioId }, data: { geoapifyKeys: valor } });
+    try {
+      const inst = await prisma.userInstance.findUnique({ where: { usuarioId } });
+      if (inst) {
+        await prisma.userInstance.update({ where: { usuarioId }, data: { geoapifyKeys: valor } });
+      }
+    } catch (e: any) {
+      console.error("[configStore] Erro ao salvar geoapifyKeys:", e.message);
+      throw e;
     }
-    // Se não existe instância ainda, ignora (usuário precisa configurar W-API primeiro)
   }
 
   return chaves;
