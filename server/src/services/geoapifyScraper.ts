@@ -312,8 +312,15 @@ export async function buscarEmpresasSemSite(
   limit = 20,
   modo: "leads" | "sem_site_whatsapp" | "completo" = "leads",
   usuarioId?: string,
+  geoapifyKeyDireto?: string,
 ): Promise<Resultado[]> {
-  const keys = await getGeoapifyKeys(usuarioId);
+  let keys: string[] = [];
+  if (geoapifyKeyDireto) {
+    keys = geoapifyKeyDireto.split(/[\n,;]+/).map((k) => k.trim()).filter(Boolean);
+  }
+  if (!keys.length) {
+    keys = await getGeoapifyKeys(usuarioId);
+  }
   if (keys.length === 0) {
     throw new Error(
       "Nenhuma chave Geoapify configurada. Defina GEOAPIFY_KEY no .env ou adicione em Configurações (menu do app)."

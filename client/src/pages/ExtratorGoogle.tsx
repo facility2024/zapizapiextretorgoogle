@@ -148,12 +148,17 @@ export default function ExtratorGoogle() {
       setErro("Digite um termo de busca");
       return;
     }
+    const geoapifyKey = localStorage.getItem("geoapify_keys") || "";
+    if (!geoapifyKey) {
+      setErro("Nenhuma chave Geoapify configurada. Vá em Configurações e salve sua chave.");
+      return;
+    }
     setLoading(true);
     setErro("");
     setStatusMsg("Iniciando extração…");
     setResultados([]);
     setProgresso(null);
-    socket.emit("extractor:search", { query: query.trim(), limit, modo });
+    socket.emit("extractor:search", { query: query.trim(), limit, modo, geoapifyKey });
   }
 
   function exportarCSV() {

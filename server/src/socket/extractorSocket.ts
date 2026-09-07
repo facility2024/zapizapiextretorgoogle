@@ -13,7 +13,7 @@ export function registerExtractorSocket(socket: Socket) {
 
   socket.on(
     "extractor:search",
-    async (payload: { query?: string; limit?: number; modo?: "leads" | "sem_site_whatsapp" | "completo" }) => {
+    async (payload: { query?: string; limit?: number; modo?: "leads" | "sem_site_whatsapp" | "completo"; geoapifyKey?: string }) => {
       const query = payload?.query?.trim();
       if (!query) {
         socket.emit("extractor:error", { message: "query é obrigatório" });
@@ -36,7 +36,7 @@ export function registerExtractorSocket(socket: Socket) {
         const limite = Math.min(Number(payload.limit) || 20, 5000);
         socket.emit("extractor:status", { stage: "searching", message: "Buscando empresas no Geoapify…" });
 
-        const empresas = await buscarEmpresasSemSite(query, limite, modo);
+        const empresas = await buscarEmpresasSemSite(query, limite, modo, undefined, payload?.geoapifyKey);
 
         const rotulo =
           modo === "completo"

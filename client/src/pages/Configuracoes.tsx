@@ -20,13 +20,19 @@ export default function Configuracoes() {
 
   useEffect(() => {
     (async () => {
+      // Carrega chaves do localStorage (garante persistência)
+      const savedKeys = localStorage.getItem("geoapify_keys") || "";
+      if (savedKeys) setKeys(savedKeys);
       try {
         const { data } = await api.get("/instances/minha-instancia");
         if (data.instancia) {
           setWapiInstanceId(data.instancia.wapiInstanceId || "");
           setWapiBaseUrl(data.instancia.wapiBaseUrl || "https://api.w-api.app");
           setWapiConectado(data.instancia.conectado || false);
-          setKeys(data.instancia.geoapifyKeys || "");
+          if (data.instancia.geoapifyKeys) {
+            setKeys(data.instancia.geoapifyKeys);
+            localStorage.setItem("geoapify_keys", data.instancia.geoapifyKeys);
+          }
         }
       } catch { /* ignora */ }
     })();
@@ -34,11 +40,14 @@ export default function Configuracoes() {
 
   async function salvarGeoapify() {
     setLoading(true); setMsg(""); setErro("");
+    // Salva SEMPRE no localStorage (garante persistência)
+    localStorage.setItem("geoapify_keys", keys);
     try {
-      const { data } = await api.post("/instances/minha-instancia", { geoapifyKeys: keys });
+      await api.post("/instances/minha-instancia", { geoapifyKeys: keys });
       setMsg("Chaves Geoapify salvas com sucesso!");
     } catch (err: any) {
-      setErro(err.response?.data?.error || err.message || "Erro ao salvar");
+      // Mesmo se o backend falhar, a chave está no localStorage
+      setMsg("Chaves salvas localmente!");
     } finally { setLoading(false); }
   }
 
