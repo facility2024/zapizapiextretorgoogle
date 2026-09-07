@@ -1,47 +1,45 @@
 /**
  * configStore.ts
  * Chaves Geoapify salvas por USUÁRIO no banco (modelo ApiKey).
- * Cada usuário tem suas próprias chaves (multi-tenant).
  */
 
 import { prisma } from "../db.js";
 
-/** Retorna as chaves Geoapify ativas do usuário; cai no .env se não houver nenhuma. */
 export async function getGeoapifyKeys(usuarioId?: string): Promise<string[]> {
-  try {
-    const where: any = { ativo: true };
-    if (usuarioId) where.usuarioId = usuarioId;
-    const rows = await prisma.apiKey.findMany({ where });
+  // 1) Chaves deste usuário
+  if (usuarioId) {
+    const rows = await prisma.apiKey.findMany({ where: { ativo: true, usuarioId } });
     const keys = rows.map((r) => r.key.trim()).filter(Boolean);
     if (keys.length) return keys;
-  } catch {
-    // ignora (ex.: tabela indisponível)
   }
+  // 2) Chaves globais (usuarioId=null)
+  const globais = await prisma.apiKey.findMany({ where: { ativo: true, usuarioId: null } });
+  const gKeys = globais.map((r) => r.key.trim()).filter(Boolean);
+  if (gKeys.length) return gKeys;
+  // 3) Fallback .env
   return (process.env.GEOAPIFY_KEY || "")
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
 }
 
-/** Substitui as chaves Geoapify do usuário. */
 export async function setGeoapifyKeys(texto: string, usuarioId?: string): Promise<string[]> {
   const chaves = [...new Set(texto.split(/[\n,;]+/).map((k) => k.trim()).filter(Boolean))];
-  try {
-    const where: any = {};
-    if (usuarioId) where.usuarioId = usuarioId;
-    else where.usuarioId = null;
-    await prisma.apiKey.deleteMany({ where });
-    if (chaves.length) {
-      await prisma.apiKey.createMany({
-        data: chaves.map((k) => ({
-          key: k,
-          ativo: true,
-          usuarioId: usuarioId || null,
-        })),
-      });
-    }
-  } catch {
-    // se falhar, ignora
+
+  // Deleta chaves antigas deste usuário
+  const whereDel: any = {};
+  if (usuarioId) whereDel.usuarioId = usuarioId;
+  else whereDel.usuarioId = null;
+  await prisma.apiKey.deleteMany({ where: whereDel });
+
+  // Salva cada chave (upsert para evitar erro de unique)
+  for (const k of chaves) {
+    await prisma.apiKey.upsert({
+      where: { key: k },
+      update: { ativo: true, usuarioId: usuarioId || null },
+      create: { key: k, ativo: true, usuarioId: usuarioId || null },
+    });
   }
+
   return chaves;
 }

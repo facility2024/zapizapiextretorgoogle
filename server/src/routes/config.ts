@@ -10,10 +10,14 @@ const router = Router();
 
 // GET /api/config/geoapify -> retorna as chaves salvas (uma por linha)
 router.get("/geoapify", async (req, res) => {
+  const uid = (req as any).usuarioId;
+  console.log("[config] GET geoapify usuarioId=", uid);
   try {
-    const keys = await getGeoapifyKeys((req as any).usuarioId);
+    const keys = await getGeoapifyKeys(uid);
+    console.log("[config] GET geoapify keys encontradas:", keys.length);
     res.json({ keys: keys.join("\n") });
   } catch (err: any) {
+    console.error("[config] GET geoapify ERRO:", err);
     res.status(500).json({ error: err?.message || "Erro ao ler chaves" });
   }
 });

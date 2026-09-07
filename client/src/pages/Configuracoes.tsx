@@ -23,7 +23,9 @@ export default function Configuracoes() {
       try {
         const { data } = await api.get("/config/geoapify");
         setKeys(data.keys || "");
-      } catch { /* ignora */ }
+      } catch (err: any) {
+        setErro("Erro ao carregar chaves: " + (err.response?.data?.error || err.message));
+      }
       try {
         const { data } = await api.get("/instances/minha-instancia");
         if (data.instancia) {
