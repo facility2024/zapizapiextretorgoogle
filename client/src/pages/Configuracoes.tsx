@@ -40,13 +40,11 @@ export default function Configuracoes() {
 
   async function salvarGeoapify() {
     setLoading(true); setMsg(""); setErro("");
-    // Salva SEMPRE no localStorage (garante persistência)
     localStorage.setItem("geoapify_keys", keys);
     try {
-      await api.post("/instances/minha-instancia", { geoapifyKeys: keys });
-      setMsg("Chaves Geoapify salvas com sucesso!");
+      await api.post("/config/geoapify", { keys });
+      setMsg("Chaves salvas com sucesso!");
     } catch (err: any) {
-      // Mesmo se o backend falhar, a chave está no localStorage
       setMsg("Chaves salvas localmente!");
     } finally { setLoading(false); }
   }
