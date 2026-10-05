@@ -13,8 +13,8 @@ npm run dev
 cd server && npm run dev   # só server
 cd client && npm run dev   # só client
 
-# Prisma — rode ANTES de subir o server (gera client e cria/atualiza tabelas)
-cd server && npm run db:generate && npm run db:push
+# Prisma — rode ANTES de subir o server (gera o client; as tabelas NÃO viajam db:push, ver Gotchas)
+cd server && npm run db:generate
 
 # Build (só frontend; server roda .ts direto via tsx, não usa dist)
 npm run build              # alias para build:client
@@ -28,7 +28,7 @@ npm run build && npm start
 
 ## Variáveis de ambiente
 Copie `server/.env.example` → `server/.env`:
-- `DATABASE_URL` — **Postgres/Supabase** (`provider = "postgresql"` em `server/prisma/schema.prisma`); string do pooler porta 6543 com `pgbouncer=true`. O `server/prisma/dev.db` legado não é mais usado.
+- `DATABASE_URL` — **Postgres/Supabase** (`provider = "postgresql"` em `server/prisma/schema.prisma`); string do **session pooler porta 5432** com `pgbouncer=true` (testado: runtime e ferramentas Prisma ok). A transaction pooler 6543 funciona no runtime (~2s) mas **trava o schema-engine** — `db push`/`db execute` morrem nela. O `server/prisma/dev.db` legado não é mais usado.
 - `AUTH_EMAIL` / `AUTH_SENHA` — admin master, **sem default** (`services/auth.ts`); vazios = login de admin desativado. O primeiro login com eles cria a linha `Usuario` (`role=admin`) no banco.
 - `AUTH_SECRET` — assinatura dos tokens. **Ausente = secret aleatório por boot** → todas as sessões morrem a cada restart.
 - `WAPI_INSTANCE_ID` / `WAPI_TOKEN` — instância usada pelo disparo; `WAPI_API_KEY` — chave da CONTA `w-api.app` para auto-provisionar instância (`wapiClient.ts` → `ensureInstanceCreated`, só quando não há `WAPI_TOKEN`); `WAPI_BASE_URL` — padrão `https://api.w-api.app`.
@@ -62,6 +62,7 @@ Nunca commite `.env` (está no `.gitignore` e no `.dockerignore`).
 - **Chave única de `Contato`** no schema é o composto `@@unique([usuarioId, numero])`, mas `upload.ts` e `extractor.ts` usam `where: { numero }` (erro de `tsc`) e criam contato sem `usuarioId`.
 - **Coluna criada no boot**: `index.ts` roda `ALTER TABLE "UserInstance" ADD COLUMN IF NOT EXISTS "geoapifyKeys"` — a coluna existe mesmo sem `db push`.
 - **Deploy**: o `Dockerfile` só roda `prisma generate`, nunca `db push`; rode `npx prisma db push` (ou `server/supabase.sql` no SQL Editor) antes de subir — o pooler do Supabase falha no push em boot e entra em crash-loop. O default de `DATABASE_URL` no `Dockerfile`/`docker-compose.yml` é `file:/app/data/dev.db...` e o Prisma **rejeita** com `provider = "postgresql"` (exige `postgresql://`) — defina `DATABASE_URL` real sempre. `docker-compose.yml` só repassa `WAPI_INSTANCE_ID/TOKEN/BASE_URL`, `DATABASE_URL` e `PORT`: `AUTH_*`, `GEOAPIFY_KEY` e `WAPI_API_KEY` não chegam ao container.
+- **Banco compartilhado com o Lovable — `prisma db push` é PROIBIDO**: o Supabase tem 4 tabelas fora do schema Prisma (`public.profiles`, `user_settings`, `email_campaigns`, `email_tracks`, geridas pelo Lovable) e o push tentaria derrubá-las; além disso falha com P4002 (FK `profiles` → `auth.users`). Para aplicar mudanças do `schema.prisma`: gere o DDL manual (ALTER/ADD COLUMN, aditivo) e rode `npx prisma db execute --stdin --schema prisma/schema.prisma` (funciona só na 5432). Banco conferido **sincronizado** com o schema em 05/10/2026 (9 tabelas + `geoapifyKeys`).
 - `db:seed` aponta para `prisma/seed.ts` inexistente — não use (`server/package.json`).
 - `services/audioConverter.ts` importa `ffmpeg-static` (**não está em `package.json`**) mas ninguém o importa — não ligue esse arquivo sem instalar a dependência. `fluent-ffmpeg` usa o `ffmpeg` do sistema (`apk add ffmpeg` no Docker).
 - W-API não-oficial — payloads mudam; cheque `wapiClient.ts` antes de alterar.
