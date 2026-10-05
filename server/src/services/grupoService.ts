@@ -111,11 +111,17 @@ async function buscarInfoGrupoAdmins(groupId: string, cred: CredenciaisWApi): Pr
 
 // 3. Cruzar participantes + contatos
 export async function extrairParticipantesComNome(groupId: string, cred: CredenciaisWApi): Promise<ParticipanteFinal[]> {
-  const [participantes, contatos, adminsGrupo] = await Promise.all([
+  const [participantes, adminsGrupo] = await Promise.all([
     buscarParticipantes(groupId, cred),
-    buscarTodosContatos(cred),
     buscarInfoGrupoAdmins(groupId, cred),
   ]);
+  // Busca de contatos é opcional: se o endpoint falhar (404/plano), seguimos sem nomes
+  let contatos: ContatoRaw[] = [];
+  try {
+    contatos = await buscarTodosContatos(cred);
+  } catch (e: any) {
+    console.warn("[GRUPOS] fetch-contacts indisponível, seguindo sem nomes:", e.message);
+  }
   const mapa = new Map(contatos.map(c => [c.id, c]));
   return participantes.map((p: any) => {
     const pid = String(p?.id || p?.jid || p?.phone || "");
@@ -178,35 +184,33 @@ async function buscarInfoGrupo(groupId: string, cred: CredenciaisWApi): Promise<
   } catch { return null; }
 }
 
-// Listar grupos
+// Listar grupos — endpoint oficial W-API: /v1/group/get-all-groups
+// (o antigo /v1/chats/fetch-chats não existe mais: retorna 404)
 export async function listarGrupos(cred: CredenciaisWApi): Promise<any[]> {
-  const perPage = 100;
-  let page = 1;
-  let totalPages = 1;
   const grupos: any[] = [];
   try {
-    do {
-      const url = `${cred.baseUrl}/v1/chats/fetch-chats?instanceId=${encodeURIComponent(cred.instanceId)}&page=${page}&perPage=${perPage}`;
-      const res = await axios.get(url, { headers: getHeaders(cred.token), timeout: 35000 });
-      const data: any = res.data;
-      if (data.error === true) throw new Error(JSON.stringify(data));
-      const chats: any[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
-      for (const c of chats) {
-        if (c.id && String(c.id).includes("@g.us")) {
-          grupos.push({
-            id: c.id,
-            subject: c.name || c.subject || c.groupName || c.pushName || c.formattedName || c.id,
-            name: c.name || c.subject || c.groupName || null,
-            size: c.participantsCount,
-          });
-        }
+    const url = `${cred.baseUrl}/v1/group/get-all-groups?instanceId=${encodeURIComponent(cred.instanceId)}`;
+    const res = await axios.get(url, { headers: getHeaders(cred.token), timeout: 35000 });
+    const data: any = res.data;
+    if (data.error === true) throw new Error(JSON.stringify(data));
+    const lista: any[] = Array.isArray(data.groups)
+      ? data.groups
+      : Array.isArray(data.chats)
+        ? data.chats
+        : Array.isArray(data)
+          ? data
+          : [];
+    for (const g of lista) {
+      const id = g.id || g.jid || g.groupId;
+      if (id && String(id).includes("@g.us")) {
+        grupos.push({
+          id: String(id),
+          subject: g.name || g.subject || g.groupName || g.pushName || g.formattedName || String(id),
+          name: g.name || g.subject || g.groupName || null,
+          size: g.participantsCount ?? g.size,
+        });
       }
-      totalPages = Number(data.totalPages) || 1;
-      page++;
-      if (page <= totalPages && grupos.length < 500) await new Promise(r => setTimeout(r, 200));
-      else break;
-      if (page > 10) break;
-    } while (page <= totalPages);
+    }
 
     const semNome = grupos.filter(g => !g.name || g.name === g.id);
     if (semNome.length > 0 && semNome.length <= 30) {
@@ -222,8 +226,8 @@ export async function listarGrupos(cred: CredenciaisWApi): Promise<any[]> {
   } catch (e: any) {
     const status = e.response?.status;
     const body = e.response?.data ? JSON.stringify(e.response.data) : e.message;
-    if (status === 403) throw new Error(`W-API 403: sem permissão. Detalhe: ${body}`);
-    if (status === 401) throw new Error(`W-API 401 Token inválido. Detalhe: ${body}`);
+    if (status === 403) throw new Error(`W-API 403: instância sem permissão para ler grupos (plano LITE?). Detalhe: ${body}`);
+    if (status === 401) throw new Error(`W-API 401: WhatsApp da instância não está conectado/pareado — reconecte o QR na tela Conectar. Detalhe: ${body}`);
     throw new Error(`Falha ao listar grupos (${status || "sem status"}): ${body}`);
   }
 }
